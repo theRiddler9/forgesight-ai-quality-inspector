@@ -31,17 +31,19 @@ Use: `Not started`, `Active`, `Blocked`, `Review`, or `Done`.
 
 Complete this gate before parallel implementation starts.
 
+**Progress:** 6 of 11 items complete. The remaining five require team decisions or cross-discipline approval.
+
 - [ ] Confirm the exact Stage 2 submission deadline with the team.
 - [ ] Agree on the maximum acceptable false-reject rate.
 - [ ] Freeze the selected part type and define what counts as a heavy burr.
-- [ ] Create the repository folders defined in the master plan.
-- [ ] Add `roadmap.md`, `design_decisions.md`, `references.md`, and `CONTRIBUTING.md`.
-- [ ] Record why the current plan uses an under-Rs-10,000 COTS enclosure instead of the older Rs-15,000 custom concept.
-- [ ] Define the canonical inspection event: timestamp, part ID, result, defect, confidence, Poka-Yoke results, stage timings, temperature, image reference, and review fields.
+- [x] Create the repository folders defined in the master plan.
+- [x] Add `roadmap.md`, `design_decisions.md`, `references.md`, and `CONTRIBUTING.md`.
+- [x] Record why the current plan uses an under-Rs-10,000 COTS enclosure instead of the older Rs-15,000 custom concept.
+- [x] Define the canonical inspection event: timestamp, part ID, result, defect, confidence, Poka-Yoke results, stage timings, temperature, image reference, and review fields.
 - [ ] Freeze the GPIO/I/O table with Aratrik and Kartikay: trigger, stack light, buzzer, ring-light PWM, active levels, timeouts, and safe state.
 - [ ] Freeze camera height, field of view, mounting envelope, and lighting assumptions with Akash, Rudra, and Kartikay.
-- [ ] Define where every native artifact, export, log, screenshot, and slide asset belongs.
-- [ ] Write the thin vertical-slice acceptance test using recorded images and mocked GPIO.
+- [x] Define where every native artifact, export, log, screenshot, and slide asset belongs.
+- [x] Write the thin vertical-slice acceptance test using recorded images and mocked GPIO.
 
 **Gate 0 acceptance:** The team can implement independently without guessing an interface, and Riya can trace one mocked inspection from input through an event record to the HMI contract.
 
