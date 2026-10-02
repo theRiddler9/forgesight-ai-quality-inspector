@@ -24,6 +24,11 @@ Small and medium manufacturers often inspect metal parts by eye. It is slow, inc
 
 Everything runs locally on the edge device. No cloud dependency.
 
+## Execution Plan
+
+- [Stage 2 master work plan](docs/forgesight-stage2-work-plan.md)
+- [Riya's Stage 2 execution workflow](docs/workflows/riya-stage2-execution-workflow.md)
+
 ## Design Strategy
 
 ForgeSight is built **COTS-first** (Commercial Off-The-Shelf) to cut cost, lead time and manufacturing risk:
