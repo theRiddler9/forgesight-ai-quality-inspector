@@ -8,10 +8,10 @@ Owned by Riya and Akash.
 |---|---|
 | `contracts/` | Shared event, camera, configuration, and I/O contracts |
 | `dataset/` | Dataset card, labeling guide, manifests, and split metadata |
-| `vision/` | Capture, preprocessing, replay, and deterministic Poka-Yoke |
+| `src/forgesight/vision/` | Capture, preprocessing, replay, and deterministic Poka-Yoke |
 | `ml/` | Training, evaluation, ONNX export, and RKNN compilation |
-| `edge/` | Decision engine, I/O adapters, watchdog, and service orchestration |
-| `backend/` | FastAPI, WebSocket, SQLite migrations, and audit services |
+| `src/forgesight/edge/` | Decision engine, I/O adapters, watchdog, and service orchestration |
+| `src/forgesight/backend/` | FastAPI, WebSocket, SQLite migrations, and audit services |
 | `frontend/` | React touchscreen HMI |
 | `deployment/` | Orange Pi environment and service configuration |
 | `tests/` | Cross-module fixtures and acceptance tests |

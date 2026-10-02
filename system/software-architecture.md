@@ -43,15 +43,19 @@ Later camera, RKNN, and GPIO adapters replace mocks without changing the decisio
 
 ```text
 software/
-  backend/
-    forgesight_api/
-    tests/
-  edge/
-    forgesight_edge/
-    tests/
-  vision/
-    forgesight_vision/
-    tests/
+  pyproject.toml
+  src/
+    forgesight/
+      contracts/
+      vision/
+      edge/
+      backend/
+  tests/
+    contracts/
+    vision/
+    edge/
+    backend/
+    acceptance/
   frontend/
     src/
     tests/
@@ -61,7 +65,7 @@ software/
   contracts/
 ```
 
-Each Python area is independently testable. Shared data structures live in one small contract package rather than being copied between services.
+Each Python area is independently testable inside one installable `forgesight` package. Shared data structures live in the `contracts` subpackage rather than being copied between services.
 
 ## Decision Precedence
 
