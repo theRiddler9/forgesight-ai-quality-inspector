@@ -144,8 +144,6 @@ Setup and run instructions will be added as each subsystem lands:
 - [ ] FMEA, standards checklist and risk mitigation
 - [ ] Stage 2 presentation deck
 
-## License
-
 ## Acknowledgements
 
 Built for the Vishwakarma Awards 2026-27. Sources and image credits are listed in [`docs/references.md`](docs/references.md).
