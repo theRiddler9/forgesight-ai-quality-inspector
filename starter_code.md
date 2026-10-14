@@ -161,8 +161,8 @@ forgesight/
 │   ├── slide_assets/                  Figures organized by slide
 │   └── slide_content_map.md           Slide-to-folder mapping
 │
-├── remember.md                        Non-negotiable project notes & audit rules
-├── agents.md                          Codex / Antigravity / Superpowers workflow & Git rules
+├── REMEMBER.md                        Non-negotiable project notes & audit rules
+├── AGENTS.md                          Codex / Antigravity / Superpowers workflow & Git rules
 ├── starter_code.md                    This document
 ├── README.md                          Project overview
 ├── CONTRIBUTING.md                    Commit/branch conventions
@@ -399,7 +399,7 @@ if __name__ == "__main__":
 
 ---
 
-## 7. Project Notes & Rules (`remember.md`)
+## 7. Project Notes & Rules (`REMEMBER.md`)
 
 - **Keep native files**: Raw SolidWorks (`.SLDPRT`, `.SLDASM`) and KiCad (`.kicad_sch`) files must be committed directly to preserve creation timestamps for Stage 2 audit.
 - **Large files**: Use Git LFS for `.rknn`, `.onnx`, `.pt`, and dataset archives; link Google Drive datasets from `software/dataset/DATASET_CARD.md`.
@@ -416,11 +416,11 @@ if __name__ == "__main__":
 
 ---
 
-## 8. Agentic Workflow & Git Rules (`agents.md`)
+## 8. Agentic Workflow & Git Rules (`AGENTS.md`)
 
 ### Workflow Before Implementation
-1. Read `agents.md`
-2. Read `remember.md`
+1. Read `AGENTS.md`
+2. Read `REMEMBER.md`
 3. Read `docs/Project_Goals.md` and `starter_code.md`
 4. Use Superpowers planning before coding.
 5. For independent tasks, subagents may be used, but **they must never unilaterally redesign cross-team interfaces or schemas**.
@@ -433,12 +433,4 @@ if __name__ == "__main__":
 - Pull/rebase shared changes before integration.
 - Avoid destructive Git operations (`rebase -i` on shared branches, force pushes).
 - **Do not wait until Day 3 to integrate.** Commit every feature and stage frequently for an authentic audit trail.
-
----
-
-## 9. External Testing Subagents (Antigravity `agy`)
-
-To verify and harden the implementation without cluttering the project repository, three external subagents are configured in `~/.gemini/antigravity-cli/`:
-1. **`codebase-flaw-auditor`**: Scans Python and React TypeScript for schema drift against `CONTRACT.md`, thread race conditions (OpenCV capture vs GPIO vs watchdog), and unhandled exceptions.
-2. **`e2e-pipeline-tester`**: Simulates the full inspection loop and benchmarks against the **≤ 100 ms latency target**.
-3. **`security-vulnerability-scanner`**: Scans for operator review retraining data poisoning, path traversal on image endpoints, SQLite injection, and exposed credentials.
+- **Both software contributors need to review PRs of each other and then make changes accordingly which are related to each other.**
