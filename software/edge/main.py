@@ -12,6 +12,7 @@ import time
 from pathlib import Path
 from typing import List, Optional
 
+from software.common.schemas import AlertType
 from software.edge.acquisition.camera import create_camera
 from software.edge.config import EdgeConfig
 from software.edge.inference.stub_inference import StubInferenceEngine
@@ -61,17 +62,23 @@ def main(argv: Optional[List[str]] = None) -> int:
 
     totals: List[float] = []
     counts = {"PASS": 0, "FAIL": 0, "RECHECK": 0}
+    successful_inspections = 0
+    capture_attempts = 0
+    capture_source_failed = False
     watchdog.start()
     try:
         with camera:
-            n = 0
-            while a.count == 0 or n < a.count:
+            while a.count == 0 or successful_inspections < a.count:
                 time.sleep(a.interval_ms / 1000.0)
-                n += 1
+                capture_attempts += 1
                 r = pipeline.run_once()
                 if r:
+                    successful_inspections += 1
                     totals.append(r.per_stage_latency_ms.total_ms)
                     counts[r.result.value] += 1
+                elif any(alert.alert_type == AlertType.CAMERA_DISCONNECTED for alert in watchdog.alerts):
+                    capture_source_failed = True
+                    break
     except KeyboardInterrupt:
         pass
     finally:
@@ -81,9 +88,20 @@ def main(argv: Optional[List[str]] = None) -> int:
     if totals:
         over = sum(t > config.latency_budget_ms for t in totals)
         print(
-            f"\n{len(totals)} inspections {counts} | latency mean {statistics.mean(totals):.2f} ms, "
+            f"\n{successful_inspections} inspections {counts} | "
+            f"capture attempts {capture_attempts}, failed {capture_attempts - successful_inspections} | "
+            f"latency mean {statistics.mean(totals):.2f} ms, "
             f"max {max(totals):.2f} ms, over {config.latency_budget_ms:.0f} ms budget: {over}"
         )
+    if a.count > 0 and successful_inspections < a.count:
+        print(
+            f"Inspection run incomplete: {successful_inspections}/{a.count} successful inspections "
+            f"after {capture_attempts} capture attempts."
+        )
+        return 1
+    if a.count == 0 and capture_source_failed:
+        print(f"Inspection stream ended after {successful_inspections} successful inspections.")
+        return 1
     return 0
 
 
