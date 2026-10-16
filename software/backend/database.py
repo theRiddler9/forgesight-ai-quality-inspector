@@ -5,9 +5,10 @@ from __future__ import annotations
 import hashlib
 import json
 import sqlite3
+from contextlib import contextmanager
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import TypeAlias
+from typing import Iterator, TypeAlias
 
 from software.common.schemas import (
     InspectionDecision,
@@ -45,8 +46,20 @@ class AuditStore:
         connection.execute(f"PRAGMA busy_timeout = {self.busy_timeout_ms}")
         return connection
 
+    @contextmanager
+    def _connection(self) -> Iterator[sqlite3.Connection]:
+        connection = self._connect()
+        try:
+            yield connection
+            connection.commit()
+        except Exception:
+            connection.rollback()
+            raise
+        finally:
+            connection.close()
+
     def initialize(self) -> None:
-        with self._connect() as connection:
+        with self._connection() as connection:
             connection.execute("PRAGMA journal_mode = WAL")
             connection.executescript(
                 """
@@ -121,7 +134,7 @@ class AuditStore:
             event_timestamp = data.timestamp
             fields = (None, None, None, None, None, None)
 
-        with self._connect() as connection:
+        with self._connection() as connection:
             cursor = connection.execute(
                 """
                 INSERT OR IGNORE INTO audit_events (
@@ -146,14 +159,14 @@ class AuditStore:
         if byte_offset < 0:
             raise ValueError("byte_offset must be non-negative")
         sample = bytes(raw_line[:_RAW_ERROR_SAMPLE_LIMIT])
-        with self._connect() as connection:
+        with self._connection() as connection:
             connection.execute(
                 "INSERT INTO ingestion_errors (byte_offset, raw_sample, reason) VALUES (?, ?, ?)",
                 (byte_offset, sample, reason[:_ERROR_REASON_LIMIT]),
             )
 
     def latest_inspection(self) -> InspectionResult | None:
-        with self._connect() as connection:
+        with self._connection() as connection:
             row = connection.execute(
                 """SELECT envelope_json FROM audit_events
                    WHERE event_type = 'inspection_result'
@@ -178,7 +191,7 @@ class AuditStore:
         if result is not None:
             where += " AND result = ?"
             parameters.append(result.value)
-        with self._connect() as connection:
+        with self._connection() as connection:
             total = connection.execute(
                 f"SELECT COUNT(*) FROM audit_events WHERE {where}", parameters
             ).fetchone()[0]

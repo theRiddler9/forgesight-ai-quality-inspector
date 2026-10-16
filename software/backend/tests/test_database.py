@@ -4,6 +4,7 @@ from datetime import datetime, timedelta, timezone
 import pytest
 
 from software.backend.database import AuditStore
+import software.backend.database as database_module
 from software.common.schemas import (
     AlertSeverity,
     AlertType,
@@ -54,6 +55,31 @@ def test_ingestion_errors_keep_only_a_bounded_raw_sample(tmp_path):
     assert offset == 23
     assert sample == b"x" * 4096
     assert reason == "invalid utf-8"
+
+
+def test_each_operation_closes_its_sqlite_connection(tmp_path, monkeypatch):
+    store = AuditStore(tmp_path / "audit.sqlite3")
+    original_connect = database_module.sqlite3.connect
+    connections = []
+
+    class TrackingConnection(sqlite3.Connection):
+        closed = False
+
+        def close(self):
+            self.closed = True
+            super().close()
+
+    def tracked_connect(*args, **kwargs):
+        kwargs["factory"] = TrackingConnection
+        connection = original_connect(*args, **kwargs)
+        connections.append(connection)
+        return connection
+
+    monkeypatch.setattr(database_module.sqlite3, "connect", tracked_connect)
+    assert store.latest_inspection() is None
+
+    assert len(connections) == 1
+    assert connections[0].closed
 
 
 def test_append_event_is_idempotent_and_shared_models_round_trip(tmp_path):
