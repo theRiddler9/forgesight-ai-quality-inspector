@@ -1,4 +1,5 @@
 import json
+import time
 from pathlib import Path
 
 import jsonschema
@@ -97,6 +98,24 @@ def test_failed_frames_are_saved_only_for_non_pass(tmp_path):
     assert pipe_ok.run_once().image_path is None
 
 
+def test_failed_frame_write_publishes_result_without_path(tmp_path, monkeypatch, caplog):
+    engine = FixedEngine([DetectionBox(class_name="crack", confidence=0.93, bbox=[1, 2, 3, 4])])
+    out = tmp_path / "events.jsonl"
+    pipe, _ = build(
+        engine=engine,
+        sinks=[JsonLinesSink(str(out))],
+        config=EdgeConfig(frame_dir=tmp_path / "frames"),
+    )
+    monkeypatch.setattr("software.edge.pipeline.cv2.imwrite", lambda *_args: False)
+
+    result = pipe.run_once()
+
+    assert result.image_path is None
+    assert "could not save failure frame" in caplog.text
+    event = json.loads(out.read_text().splitlines()[0])
+    assert event["data"]["image_path"] is None
+
+
 def test_camera_loss_shows_fault_and_trips_watchdog():
     pipe, gpio = build(camera=SyntheticCamera(disconnect_after=1))
     assert pipe.run_once() is not None
@@ -104,6 +123,45 @@ def test_camera_loss_shows_fault_and_trips_watchdog():
         assert pipe.run_once() is None
     assert lights(gpio) == (False, False, True, True)
     assert [a.alert_type for a in pipe.watchdog.alerts] == [AlertType.CAMERA_DISCONNECTED]
+
+
+def test_failed_capture_publishes_recheck_audit_record(tmp_path):
+    out = tmp_path / "events.jsonl"
+    pipe, _ = build(
+        camera=SyntheticCamera(disconnect_after=0), sinks=[JsonLinesSink(str(out))]
+    )
+
+    assert pipe.run_once() is None
+    event = json.loads(out.read_text().splitlines()[0])
+    result = InspectionResult.model_validate(event["data"])
+    assert event["event"] == "inspection_result"
+    assert result.result == R.RECHECK
+    assert result.confidence == 0.0
+    assert not result.poka_yoke_status.part_present
+    assert result.per_stage_latency_ms.npu_inference_ms == 0.0
+
+
+def test_stall_fault_stays_latched_until_next_pass_decision():
+    class SlowOnceEngine(FixedEngine):
+        def infer(self, frame):
+            self.calls += 1
+            if self.calls == 1:
+                time.sleep(0.25)
+            return []
+
+    gpio = MockGPIOController()
+    watchdog = Watchdog()
+    pipe = InspectionPipeline(
+        SyntheticCamera(seed=1), SlowOnceEngine([]), gpio, watchdog, lambda: 52.0
+    )
+    watchdog.start(poll_ms=2.0)
+    try:
+        assert pipe.run_once().result == R.PASS
+        assert lights(gpio) == (False, False, True, True)
+        assert pipe.run_once().result == R.PASS
+        assert lights(gpio) == (True, False, False, False)
+    finally:
+        watchdog.stop()
 
 
 def test_overheating_raises_warning_but_still_reports_result():
@@ -126,6 +184,24 @@ def test_cli_runs_end_to_end_with_all_mocks(capsys):
     assert main(["--mock-hardware", "--mock-camera", "--use-stub-engine", "--count", "15", "--interval-ms", "0"]) == 0
     out = capsys.readouterr().out
     assert "15 inspections" in out
+
+
+def test_cli_fails_after_camera_cannot_produce_requested_inspections(tmp_path, monkeypatch, capsys):
+    out = tmp_path / "failed-captures.jsonl"
+    monkeypatch.setattr(
+        "software.edge.main.create_camera",
+        lambda *args, **kwargs: SyntheticCamera(disconnect_after=0),
+    )
+
+    status = main([
+        "--mock-hardware", "--mock-camera", "--use-stub-engine",
+        "--count", "2", "--interval-ms", "0", "--jsonl", str(out),
+    ])
+
+    events = [json.loads(line) for line in out.read_text().splitlines()]
+    assert status != 0
+    assert len([e for e in events if e["event"] == "inspection_result"]) == 3
+    assert "0/2 successful inspections after 3 capture attempts" in capsys.readouterr().out
 
 
 def test_cli_refuses_real_hardware_until_implemented():
