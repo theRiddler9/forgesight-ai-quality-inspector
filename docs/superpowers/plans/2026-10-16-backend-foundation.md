@@ -113,4 +113,3 @@
 - [x] Run `pytest software/backend/tests -q` and `git diff --check` after the independent implementation is complete.
 - [x] Stop before adding the event-file tailer, its error recorder, or lifespan wiring that starts it; resume only after Riya approves the section 7 JSONL handoff decision.
 - [x] Do not claim edge-to-backend integration until the handoff-dependent work is implemented and verified.
-
