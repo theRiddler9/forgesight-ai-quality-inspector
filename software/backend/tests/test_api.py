@@ -196,3 +196,16 @@ def test_live_websocket_route_sends_events_from_the_hub(tmp_path):
         with client.websocket_connect("/ws/live") as websocket:
             client.portal.call(app.state.websocket_hub.publish, envelope)
             assert websocket.receive_json() == envelope
+
+
+def test_status_returns_503_when_system_memory_is_unavailable(tmp_path, monkeypatch):
+    def fail_metrics():
+        raise OSError("memory metrics unavailable")
+
+    monkeypatch.setattr(app_module.psutil, "virtual_memory", fail_metrics)
+    with TestClient(
+        create_app(tmp_path / "audit.sqlite3"), raise_server_exceptions=False
+    ) as client:
+        response = client.get("/api/v1/system/status")
+
+    assert response.status_code == 503

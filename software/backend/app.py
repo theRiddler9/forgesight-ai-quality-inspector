@@ -112,6 +112,8 @@ def create_app(db_path: str | Path | None = None) -> FastAPI:
             )
         except sqlite3.Error as exc:
             raise HTTPException(status_code=503, detail="audit database unavailable") from exc
+        except (psutil.Error, OSError) as exc:
+            raise HTTPException(status_code=503, detail="system metrics unavailable") from exc
         soc_temp = snapshot["soc_temp_c"]
         soc_timestamp = snapshot["soc_temp_timestamp"]
         if soc_temp is None or soc_temp == -1.0:
