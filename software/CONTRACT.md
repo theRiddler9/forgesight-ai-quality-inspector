@@ -92,12 +92,90 @@ SoC temperature > 65 C (warning).
 | `GET /api/v1/system/status` | SoC temperature, RAM, FPS, average latency |
 | `POST /api/v1/settings/thresholds` | PASS/FAIL/RECHECK thresholds + LED ring PWM brightness |
 
-Request/response bodies are defined in the backend PR and appended here before it merges.
+### Read response bodies (backend v1)
 
-## 7. Edge -> backend handoff (OPEN — decide before the first integration PR)
+`GET /health`:
 
-The blueprint does not define how results travel from the edge process to the backend.
-The edge runtime currently writes one JSON line per event to a JSONL file, already in the
-WebSocket envelope shape (`{"event": "inspection_result", "data": {...}}`), so the backend
-can tail it and rebroadcast without a schema change. Alternatives: in-process import, or a
-new internal `POST` route. Whichever is chosen, record it here.
+```json
+{"status":"ok","uptime_seconds":12.5}
+```
+
+`GET /api/v1/inspections/latest`: a complete `InspectionResult` object, or JSON `null`
+when there are no inspection events.
+
+`GET /api/v1/inspections/history?result=FAIL&limit=50&offset=0`:
+
+```json
+{
+  "items": [
+    {
+      "inspection_id": "f5bd274e-8f46-4bd9-b5fb-28c26015609d",
+      "timestamp": "2026-10-16T12:00:00Z",
+      "result": "FAIL",
+      "defect_type": "burr",
+      "confidence": 0.91,
+      "class_names": ["burr", "flash", "crack", "scratch"],
+      "poka_yoke_status": {
+        "part_present": true,
+        "position_valid": true,
+        "hole_present": true,
+        "size_in_range": true
+      },
+      "per_stage_latency_ms": {
+        "capture_ms": 8.0,
+        "poka_yoke_ms": 12.0,
+        "npu_inference_ms": 25.0,
+        "decision_ms": 2.0,
+        "total_ms": 47.0
+      },
+      "soc_temp_c": 52.0,
+      "detections": [],
+      "image_path": "data/frames/f5bd274e-8f46-4bd9-b5fb-28c26015609d.jpg"
+    }
+  ],
+  "total": 1,
+  "limit": 50,
+  "offset": 0
+}
+```
+
+`items` contains complete `InspectionResult` objects. Results are ordered by
+`timestamp DESC, rowid DESC`; `total` is the number matching the optional result filter
+before pagination. `limit` defaults to 50 and is capped at 500; `offset` defaults to 0.
+
+`GET /api/v1/system/status`:
+
+```json
+{
+  "soc_temp_c": 52.0,
+  "soc_temp_timestamp": "2026-10-16T12:00:00Z",
+  "ram_used_mb": 2048.0,
+  "ram_total_mb": 8192.0,
+  "fps": 2.0,
+  "avg_latency_ms": 48.5
+}
+```
+
+RAM means system RAM, not backend-process RAM. `fps` is the count of
+`inspection_result` events in the preceding five seconds divided by five; watchdog alerts
+are excluded. `soc_temp_timestamp` is the timestamp of the inspection that supplied the
+reading, not the API response time. `soc_temp_c` and its timestamp are both `null` when
+there is no sample or the edge sentinel is `-1.0`. `avg_latency_ms` is the mean total
+latency from at most the latest 100 inspections, or `null` when there are none.
+
+The local Vite development origin (`http://localhost:5173`) must be enabled by narrow
+localhost CORS configuration (`GET` only) or a documented Vite proxy before the HMI
+integration. The current backend allows only that origin and GET methods.
+
+Operator review and settings request/response bodies remain undefined and must be added
+before those routes are implemented or merged.
+
+## 7. Edge -> backend handoff (PROPOSED — pending Riya approval)
+
+Proposal: use the existing JSONL sink as the edge-to-backend handoff. The edge runtime
+writes one JSON line per event to a JSONL file, already in the WebSocket envelope shape
+(`{"event": "inspection_result", "data": {...}}` or `{"event": "watchdog_alert", "data": {...}}`),
+so the backend can tail and rebroadcast without a schema change. Run the edge CLI with
+`--jsonl data/events.jsonl`; it has no default JSONL path. Alternatives are an in-process
+import or a new internal `POST` route. Riya must approve this section 7 decision before
+backend implementation or merge.
