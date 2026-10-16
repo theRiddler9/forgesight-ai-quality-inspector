@@ -209,7 +209,7 @@ class AuditStore:
     def status_snapshot(self, now: datetime) -> dict[str, object]:
         current = _utc_iso(now)
         since = _utc_iso(now - timedelta(seconds=5))
-        with self._connect() as connection:
+        with self._connection() as connection:
             latest = connection.execute(
                 """SELECT event_timestamp, soc_temp_c FROM audit_events
                    WHERE event_type = 'inspection_result'

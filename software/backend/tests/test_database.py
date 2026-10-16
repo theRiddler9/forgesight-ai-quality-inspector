@@ -76,7 +76,7 @@ def test_each_operation_closes_its_sqlite_connection(tmp_path, monkeypatch):
         return connection
 
     monkeypatch.setattr(database_module.sqlite3, "connect", tracked_connect)
-    assert store.latest_inspection() is None
+    assert store.status_snapshot(datetime.now(timezone.utc))["fps"] == 0.0
 
     assert len(connections) == 1
     assert connections[0].closed
