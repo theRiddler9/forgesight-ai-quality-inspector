@@ -21,9 +21,13 @@ class Watchdog:
         soc_limit_c: float = 65.0,
         max_missed_frames: int = 3,
         clock: Callable[[], float] = time.monotonic,
+        recovery_temp_c: Optional[float] = None,
     ):
         self.stall_timeout_s = stall_timeout_ms / 1000.0
         self.soc_limit_c = soc_limit_c
+        self.recovery_temp_c = recovery_temp_c if recovery_temp_c is not None else soc_limit_c - 2.0
+        if self.recovery_temp_c >= self.soc_limit_c:
+            raise ValueError("recovery_temp_c must be below soc_limit_c")
         self.max_missed_frames = max_missed_frames
         self._clock = clock
         self._lock = threading.Lock()
@@ -71,7 +75,9 @@ class Watchdog:
     def report_temperature(self, soc_c: float) -> None:
         alert = None
         with self._lock:
-            if soc_c > self.soc_limit_c and not self._hot:
+            if self._hot and soc_c <= self.recovery_temp_c:
+                self._hot = False
+            elif not self._hot and soc_c > self.soc_limit_c:
                 self._hot = True
                 alert = WatchdogAlert(
                     alert_type=AlertType.OVERHEATING,
@@ -79,8 +85,6 @@ class Watchdog:
                     message=f"SoC {soc_c:.1f} C exceeds {self.soc_limit_c:.0f} C",
                     value=soc_c,
                 )
-            elif soc_c <= self.soc_limit_c:
-                self._hot = False
         if alert:
             self._emit(alert)
 
@@ -108,7 +112,10 @@ class Watchdog:
         log.error("WATCHDOG %s: %s", alert.alert_type.value, alert.message)
         self.alerts.append(alert)
         for cb in self._listeners:
-            cb(alert)
+            try:
+                cb(alert)
+            except Exception:
+                log.exception("watchdog alert subscriber failed")
 
     # --- background thread
     def start(self, poll_ms: float = 20.0) -> None:
@@ -123,5 +130,5 @@ class Watchdog:
 
     def stop(self) -> None:
         self._stop.set()
-        if self._thread:
+        if self._thread and self._thread is not threading.current_thread():
             self._thread.join(timeout=1.0)
