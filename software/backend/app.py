@@ -12,11 +12,13 @@ from typing import Literal
 
 import psutil
 from fastapi import FastAPI, HTTPException, Query, Request
+from fastapi import WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
 from software.backend.config import BackendSettings
 from software.backend.database import AuditStore
+from software.backend.websocket import WebSocketHub
 from software.common.schemas import InspectionDecision, InspectionResult
 
 _MIB = 1024 * 1024
@@ -48,6 +50,7 @@ class SystemStatusResponse(BaseModel):
 async def _lifespan(app: FastAPI):
     settings: BackendSettings = app.state.settings
     app.state.audit_store = await asyncio.to_thread(AuditStore, settings.db_path)
+    app.state.websocket_hub = WebSocketHub()
     app.state.started_at = time.monotonic()
     yield
 
@@ -122,6 +125,16 @@ def create_app(db_path: str | Path | None = None) -> FastAPI:
             fps=snapshot["fps"],
             avg_latency_ms=snapshot["avg_latency_ms"],
         )
+
+    @app.websocket("/ws/live")
+    async def live_events(socket: WebSocket) -> None:
+        hub: WebSocketHub = socket.app.state.websocket_hub
+        await hub.connect(socket)
+        try:
+            while True:
+                await socket.receive_text()
+        except WebSocketDisconnect:
+            await hub.disconnect(socket, close=False)
 
     return app
 

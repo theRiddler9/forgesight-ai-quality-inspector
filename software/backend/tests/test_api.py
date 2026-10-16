@@ -187,3 +187,12 @@ def test_status_average_uses_latest_100_inspections(tmp_path):
         status = client.get("/api/v1/system/status").json()
 
     assert status["avg_latency_ms"] == 49.5
+
+
+def test_live_websocket_route_sends_events_from_the_hub(tmp_path):
+    app = create_app(tmp_path / "audit.sqlite3")
+    envelope = {"event": "inspection_result", "data": {"result": "PASS"}}
+    with TestClient(app) as client:
+        with client.websocket_connect("/ws/live") as websocket:
+            client.portal.call(app.state.websocket_hub.publish, envelope)
+            assert websocket.receive_json() == envelope
