@@ -15,6 +15,7 @@ from software.common.schemas import (
     InspectionDecision,
     InspectionResult,
     LatencyBreakdown,
+    PokaYokeStatus,
     WatchdogAlert,
 )
 from software.edge.acquisition.camera import FrameSource
@@ -48,10 +49,14 @@ class InspectionPipeline:
         self.camera, self.engine, self.gpio = camera, engine, gpio
         self.watchdog, self.temp_reader = watchdog, temp_reader
         self.sinks, self.config = list(sinks), config
+        self._fault_latched = False
+        self._faulted_during_inspection = False
         self.watchdog.subscribe(self._on_alert)
 
     def _on_alert(self, alert: WatchdogAlert) -> None:
         if alert.severity == AlertSeverity.CRITICAL:
+            self._fault_latched = True
+            self._faulted_during_inspection = True
             self.gpio.show_fault()
         for s in self.sinks:
             s.publish_alert(alert)
@@ -59,14 +64,17 @@ class InspectionPipeline:
     def run_once(self) -> Optional[InspectionResult]:
         """Run one inspection on trigger. Returns None if no frame could be captured."""
         cfg = self.config
+        self._faulted_during_inspection = False
         self.watchdog.begin_inspection()
         try:
             # 1. capture + contrast adjustment
             t = time.perf_counter()
             frame = self.camera.read()
             if frame is None:
+                capture_ms = _ms(t)
                 self.watchdog.report_frame(False)
                 self.gpio.show_fault()  # never leave the previous part's light on
+                self._publish_capture_failure(capture_ms)
                 return None
             self.watchdog.report_frame(True)
             enhanced = adjust_contrast(frame, cfg.contrast_clip_limit)  # AI branch only
@@ -87,7 +95,13 @@ class InspectionPipeline:
             # 4. decision + indicator outputs
             t = time.perf_counter()
             decision = decide(report.status, detections, cfg.thresholds)
-            self.gpio.show_result(decision.result)
+            if self._fault_latched and not self._faulted_during_inspection and decision.result == InspectionDecision.PASS:
+                # A clean, fully completed later inspection is the explicit recovery decision.
+                self._fault_latched = False
+            if self._fault_latched:
+                self.gpio.show_fault()
+            else:
+                self.gpio.show_result(decision.result)
             decision_ms = _ms(t)
 
             # 5. bookkeeping (outside the latency budget)
@@ -119,9 +133,35 @@ class InspectionPipeline:
         finally:
             self.watchdog.end_inspection()
 
-    def _save_frame(self, frame, inspection_id) -> str:
+    def _save_frame(self, frame, inspection_id) -> Optional[str]:
         directory = Path(self.config.frame_dir)
-        directory.mkdir(parents=True, exist_ok=True)
         path = directory / f"{inspection_id}.jpg"
-        cv2.imwrite(str(path), frame)
+        try:
+            directory.mkdir(parents=True, exist_ok=True)
+            if not cv2.imwrite(str(path), frame):
+                log.error("could not save failure frame to %s", path)
+                return None
+        except (OSError, cv2.error):
+            log.exception("could not save failure frame to %s", path)
+            return None
         return str(path)
+
+    def _publish_capture_failure(self, capture_ms: float) -> None:
+        """Audit one failed trigger capture as RECHECK, then leave the API return as None."""
+        soc_c = self.temp_reader()
+        self.watchdog.report_temperature(soc_c)
+        result = InspectionResult(
+            result=InspectionDecision.RECHECK,
+            defect_type="none",
+            confidence=0.0,
+            poka_yoke_status=PokaYokeStatus(
+                part_present=False,
+                position_valid=False,
+                hole_present=False,
+                size_in_range=False,
+            ),
+            per_stage_latency_ms=LatencyBreakdown.from_stages(capture_ms, 0.0, 0.0, 0.0),
+            soc_temp_c=soc_c,
+        )
+        for sink in self.sinks:
+            sink.publish_result(result)
