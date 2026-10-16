@@ -51,7 +51,7 @@ Perform SQLite work without blocking the asyncio event loop. Return validation e
 
 ## Scope boundaries
 
-Included: local FastAPI app, JSONL tailing, schema validation, SQLite append-only audit and ingestion-error tables, the read routes above, `/ws/live`, configuration, and tests.
+Included in the current backend scope: local FastAPI app, schema validation, SQLite append-only audit and ingestion-error tables, the read routes above, `/ws/live`, configuration, and tests. JSONL tailing and its approval-dependent edge handoff are deferred until the section 7 handoff decision is approved separately.
 
 Deferred: React HMI; operator review and retraining-data writes; threshold/brightness POST settings; bidirectional edge control; live JPEG frame streaming; RKNN inference and physical hardware. Failed-frame thumbnails are also deferred: a future frame-serving route must constrain resolved paths to the configured frame directory and reject traversal/symlink escapes before opening `image_path`. The settings route needs a defined backend-to-edge control path; the operator review route needs a request body and label/image storage contract. These are not silently stubbed as successful operations.
 

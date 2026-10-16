@@ -14,6 +14,8 @@ class _Client:
     socket: WebSocket
     queue: asyncio.Queue[dict[str, Any]]
     sender: asyncio.Task[None] | None = None
+    eviction_pending: bool = False
+    eviction_task: asyncio.Task[None] | None = None
 
 
 class WebSocketHub:
@@ -59,10 +61,15 @@ class WebSocketHub:
     def publish(self, envelope: dict[str, Any]) -> None:
         """Enqueue an event without awaiting any client network operation."""
         for socket, client in list(self._clients.items()):
+            if client.eviction_pending:
+                continue
             try:
                 client.queue.put_nowait(envelope)
             except asyncio.QueueFull:
-                asyncio.create_task(self.disconnect(socket, code=1013))
+                client.eviction_pending = True
+                client.eviction_task = asyncio.create_task(
+                    self.disconnect(socket, code=1013)
+                )
 
     async def _send_loop(self, client: _Client) -> None:
         try:

@@ -82,6 +82,28 @@ def test_queue_overflow_evicts_slow_client_without_blocking_healthy_client():
     asyncio.run(scenario())
 
 
+def test_repeated_overflow_schedules_only_one_eviction_for_client():
+    async def scenario():
+        hub = WebSocketHub(queue_size=1, send_timeout_seconds=0.5)
+        slow = FakeWebSocket(block_sends=True)
+        await hub.connect(slow)
+        client = hub._clients[slow]
+
+        hub.publish({"event": "one", "data": {}})
+        await slow.send_started.wait()
+        hub.publish({"event": "two", "data": {}})
+        hub.publish({"event": "three", "data": {}})
+
+        assert client.eviction_pending
+        assert hub.client_count == 1  # cleanup task has not run before this assertion
+        assert client.eviction_task is not None
+        await client.eviction_task
+        assert hub.client_count == 0
+        assert slow.close_code == 1013
+
+    asyncio.run(scenario())
+
+
 def test_send_timeout_evicts_only_stalled_client():
     async def scenario():
         hub = WebSocketHub(queue_size=2, send_timeout_seconds=0.01)
