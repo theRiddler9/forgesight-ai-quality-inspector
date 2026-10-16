@@ -1,3 +1,5 @@
+import threading
+
 from software.common.schemas import AlertType, InspectionDecision as R
 from software.edge.io_control.debounce import Debouncer
 from software.edge.io_control.gpio import MockGPIOController
@@ -87,10 +89,42 @@ def test_watchdog_camera_loss_after_three_missed_frames_and_recovery():
 
 def test_watchdog_thermal_warning_has_hysteresis_reset():
     wd = Watchdog()
-    wd.report_temperature(60.0)
+    wd.report_temperature(65.1)
+    wd.report_temperature(64.9)  # brief dip below warning threshold does not rearm
     wd.report_temperature(66.0)
-    wd.report_temperature(67.0)
     assert len(wd.alerts) == 1 and wd.alerts[0].alert_type == AlertType.OVERHEATING
-    wd.report_temperature(60.0)
+    wd.report_temperature(62.9)  # recovery threshold is 63 C by default
     wd.report_temperature(66.0)
     assert len(wd.alerts) == 2
+
+
+def test_watchdog_isolates_subscriber_failures(caplog):
+    wd = Watchdog()
+    received = []
+
+    def broken_subscriber(_alert):
+        raise RuntimeError("subscriber failed")
+
+    wd.subscribe(broken_subscriber)
+    wd.subscribe(received.append)
+    wd.report_temperature(66.0)
+
+    assert len(received) == 1
+    assert "watchdog alert subscriber failed" in caplog.text
+
+
+def test_watchdog_can_stop_from_its_own_alert_callback():
+    wd = Watchdog(stall_timeout_ms=1.0)
+    callback_finished = threading.Event()
+
+    def stop_from_callback(_alert):
+        wd.stop()
+        callback_finished.set()
+
+    wd.subscribe(stop_from_callback)
+    wd.begin_inspection()
+    wd.start(poll_ms=1.0)
+
+    assert callback_finished.wait(1.0)
+    wd.stop()
+    assert wd._thread is not None and not wd._thread.is_alive()
