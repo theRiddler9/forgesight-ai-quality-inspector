@@ -16,6 +16,7 @@ class FakeClock:
 
 def test_gpio_signal_matches_decision():
     g = MockGPIOController()
+    assert (g.state.green, g.state.amber, g.state.ring_pwm_pct) == (False, True, 0)
     s = g.show_result(R.PASS)
     assert (s.green, s.red, s.amber, s.buzzer) == (True, False, False, False)
     s = g.show_result(R.FAIL)
@@ -23,18 +24,29 @@ def test_gpio_signal_matches_decision():
     s = g.show_result(R.RECHECK)
     assert (s.green, s.red, s.amber, s.buzzer) == (False, False, True, False)
     s = g.show_fault()
-    assert (s.green, s.red, s.amber, s.buzzer) == (False, False, True, True)
+    assert (s.green, s.red, s.amber, s.buzzer, s.ring_pwm_pct) == (False, False, True, False, 0)
 
 
 def test_ring_brightness_is_clamped_and_persists():
     g = MockGPIOController()
     g.set_ring_brightness(150)
-    assert g.state.ring_pwm_pct == 100.0
+    assert g.state.ring_pwm_pct == 0.0  # startup keeps illumination off
     g.set_ring_brightness(40)
     g.show_result(R.PASS)
     assert g.state.ring_pwm_pct == 40.0
     g.close()
     assert not any([g.state.green, g.state.red, g.state.amber, g.state.buzzer])
+    assert g.state.ring_pwm_pct == 0
+
+
+def test_gpio_fault_and_recovery_do_not_restore_stale_pass():
+    g = MockGPIOController()
+    g.show_result(R.PASS)
+    g.safe()
+    assert (g.state.green, g.state.amber, g.state.buzzer, g.state.ring_pwm_pct) == (False, True, False, 0)
+    g.show_result(R.RECHECK)
+    assert not g.state.green
+    assert g.state.ring_pwm_pct == 100
 
 
 def test_debounce_ignores_chatter_then_accepts():
