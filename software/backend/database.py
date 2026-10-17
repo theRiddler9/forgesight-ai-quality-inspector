@@ -9,12 +9,14 @@ from contextlib import contextmanager
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Iterator, TypeAlias
+from uuid import uuid4
 
 from software.common.schemas import (
     InspectionDecision,
     InspectionResult,
     WatchdogAlert,
 )
+from software.inspection.events import validate_event
 
 AuditEvent: TypeAlias = InspectionResult | WatchdogAlert
 _RAW_ERROR_SAMPLE_LIMIT = 4096
@@ -99,6 +101,38 @@ class AuditStore:
                     raw_sample BLOB NOT NULL,
                     reason TEXT NOT NULL
                 );
+                CREATE TABLE IF NOT EXISTS canonical_inspections (
+                    event_id TEXT PRIMARY KEY,
+                    event_timestamp TEXT NOT NULL,
+                    result TEXT NOT NULL CHECK (result IN ('PASS', 'FAIL', 'RECHECK')),
+                    event_json TEXT NOT NULL
+                );
+                CREATE INDEX IF NOT EXISTS idx_canonical_inspections_timestamp
+                    ON canonical_inspections(event_timestamp DESC);
+                CREATE INDEX IF NOT EXISTS idx_canonical_inspections_result
+                    ON canonical_inspections(result, event_timestamp DESC);
+                CREATE TRIGGER IF NOT EXISTS canonical_inspections_no_update
+                BEFORE UPDATE ON canonical_inspections
+                BEGIN SELECT RAISE(ABORT, 'canonical_inspections is append-only'); END;
+                CREATE TRIGGER IF NOT EXISTS canonical_inspections_no_delete
+                BEFORE DELETE ON canonical_inspections
+                BEGIN SELECT RAISE(ABORT, 'canonical_inspections is append-only'); END;
+                CREATE TABLE IF NOT EXISTS inspection_reviews (
+                    review_id TEXT PRIMARY KEY,
+                    event_id TEXT NOT NULL REFERENCES canonical_inspections(event_id),
+                    reviewed_at TEXT NOT NULL,
+                    reviewer_id TEXT NOT NULL,
+                    corrected_result TEXT NOT NULL CHECK (corrected_result IN ('PASS', 'FAIL', 'RECHECK')),
+                    note TEXT NOT NULL
+                );
+                CREATE INDEX IF NOT EXISTS idx_inspection_reviews_event
+                    ON inspection_reviews(event_id, reviewed_at);
+                CREATE TRIGGER IF NOT EXISTS inspection_reviews_no_update
+                BEFORE UPDATE ON inspection_reviews
+                BEGIN SELECT RAISE(ABORT, 'inspection_reviews is append-only'); END;
+                CREATE TRIGGER IF NOT EXISTS inspection_reviews_no_delete
+                BEFORE DELETE ON inspection_reviews
+                BEGIN SELECT RAISE(ABORT, 'inspection_reviews is append-only'); END;
                 """
             )
 
@@ -151,6 +185,90 @@ class AuditStore:
                 ),
             )
             return cursor.rowcount == 1
+
+    def append_inspection_pair(self, result: InspectionResult, event: dict) -> bool:
+        """Commit canonical evidence and the legacy read projection atomically."""
+        validate_event(event)
+        if event["event_id"] != str(result.inspection_id) or event["result"] != result.result.value:
+            raise ValueError("canonical event and inspection result disagree")
+        canonical = json.dumps(event, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+        envelope = self._model_envelope("inspection_result", result)
+        projection = json.dumps(envelope, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+        event_key = hashlib.sha256(projection.encode("utf-8")).hexdigest()
+        with self._connection() as connection:
+            inserted = connection.execute(
+                """INSERT OR IGNORE INTO canonical_inspections
+                   (event_id, event_timestamp, result, event_json) VALUES (?, ?, ?, ?)""",
+                (event["event_id"], _utc_iso(result.timestamp), result.result.value, canonical),
+            ).rowcount
+            if not inserted:
+                return False
+            connection.execute(
+                """INSERT INTO audit_events
+                   (event_key, event_type, event_timestamp, inspection_id, result,
+                    defect_type, confidence, soc_temp_c, total_latency_ms, envelope_json)
+                   VALUES (?, 'inspection_result', ?, ?, ?, ?, ?, ?, ?, ?)""",
+                (
+                    event_key, _utc_iso(result.timestamp), str(result.inspection_id),
+                    result.result.value, result.defect_type.value, result.confidence,
+                    result.soc_temp_c, result.per_stage_latency_ms.total_ms, projection,
+                ),
+            )
+        return True
+
+    def canonical_inspection(self, event_id: str) -> dict | None:
+        with self._connection() as connection:
+            row = connection.execute(
+                "SELECT event_json FROM canonical_inspections WHERE event_id = ?", (event_id,)
+            ).fetchone()
+        return json.loads(row["event_json"]) if row else None
+
+    def canonical_history(self, result: str | None, limit: int, offset: int) -> tuple[list[dict], int]:
+        if not 1 <= limit <= 500 or offset < 0:
+            raise ValueError("invalid pagination")
+        where = "" if result is None else "WHERE result = ?"
+        params: tuple = () if result is None else (result,)
+        with self._connection() as connection:
+            total = connection.execute(
+                f"SELECT COUNT(*) FROM canonical_inspections {where}", params
+            ).fetchone()[0]
+            rows = connection.execute(
+                f"""SELECT event_json FROM canonical_inspections {where}
+                    ORDER BY event_timestamp DESC, rowid DESC LIMIT ? OFFSET ?""",
+                (*params, limit, offset),
+            ).fetchall()
+        return [json.loads(row["event_json"]) for row in rows], total
+
+    def append_review(self, event_id: str, reviewer_id: str, corrected_result: str, note: str) -> dict:
+        if corrected_result not in {"PASS", "FAIL", "RECHECK"}:
+            raise ValueError("invalid corrected result")
+        review = {
+            "review_id": str(uuid4()), "event_id": event_id,
+            "reviewed_at": _utc_iso(datetime.now(timezone.utc)),
+            "reviewer_id": reviewer_id, "corrected_result": corrected_result, "note": note,
+        }
+        with self._connection() as connection:
+            exists = connection.execute(
+                "SELECT 1 FROM canonical_inspections WHERE event_id = ?", (event_id,)
+            ).fetchone()
+            if exists is None:
+                raise KeyError(event_id)
+            connection.execute(
+                """INSERT INTO inspection_reviews
+                   (review_id, event_id, reviewed_at, reviewer_id, corrected_result, note)
+                   VALUES (?, ?, ?, ?, ?, ?)""",
+                tuple(review.values()),
+            )
+        return review
+
+    def review_history(self, event_id: str) -> list[dict]:
+        with self._connection() as connection:
+            rows = connection.execute(
+                """SELECT review_id, event_id, reviewed_at, reviewer_id, corrected_result, note
+                   FROM inspection_reviews WHERE event_id = ? ORDER BY reviewed_at, rowid""",
+                (event_id,),
+            ).fetchall()
+        return [dict(row) for row in rows]
 
     def record_ingestion_error(
         self, byte_offset: int, raw_line: bytes, reason: str
