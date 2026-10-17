@@ -239,6 +239,23 @@ class AuditStore:
             ).fetchall()
         return [json.loads(row["event_json"]) for row in rows], total
 
+    def canonical_metrics(self) -> dict[str, int | float | None]:
+        with self._connection() as connection:
+            rows = connection.execute(
+                "SELECT result, COUNT(*) AS amount FROM canonical_inspections GROUP BY result"
+            ).fetchall()
+            latency = connection.execute(
+                """SELECT AVG(total_latency_ms) FROM audit_events
+                   WHERE event_type = 'inspection_result' AND inspection_id IN
+                   (SELECT event_id FROM canonical_inspections)"""
+            ).fetchone()[0]
+        counts: dict[str, int | float | None] = {"PASS": 0, "FAIL": 0, "RECHECK": 0}
+        for row in rows:
+            counts[row["result"]] = row["amount"]
+        counts["total"] = sum(int(counts[key]) for key in ("PASS", "FAIL", "RECHECK"))
+        counts["average_latency_ms"] = latency
+        return counts
+
     def append_review(self, event_id: str, reviewer_id: str, corrected_result: str, note: str) -> dict:
         if corrected_result not in {"PASS", "FAIL", "RECHECK"}:
             raise ValueError("invalid corrected result")
