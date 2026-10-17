@@ -93,6 +93,18 @@
         "scenario_driven_detector": { "const": true },
         "mock_io": { "const": true }
       }
+    },
+    "mock_io_state": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["green", "red", "amber", "buzzer", "ring_light_pwm"],
+      "properties": {
+        "green": { "type": "boolean" },
+        "red": { "type": "boolean" },
+        "amber": { "type": "boolean" },
+        "buzzer": { "type": "boolean" },
+        "ring_light_pwm": { "type": "number", "minimum": 0, "maximum": 100 }
+      }
     }
   },
   "$defs": {

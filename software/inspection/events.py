@@ -59,7 +59,7 @@ def build_event(
                 max(0.0, min(1.0, y1 / height)),
                 max(0.0, min(1.0, (x2 - x1) / width)),
                 max(0.0, min(1.0, (y2 - y1) / height)),
-            ] if packet else None,
+            ] if packet and x2 > x1 and y2 > y1 else None,
         })
     event = {
         "schema_version": "1.0.0",
