@@ -1,0 +1,41 @@
+{
+  "profile_id": "metal-plate-v1",
+  "version": "1.0.0",
+  "display_name": "Provisional metal mounting plate",
+  "category": "metal_plate",
+  "validation_status": "provisional",
+  "image": {"width": 1280, "height": 800, "pixel_format": "BGR8"},
+  "roi": {"x": 0, "y": 0, "width": 1, "height": 1},
+  "geometry": {
+    "adapter": "rectangular_plate_v1",
+    "rules": ["part_presence", "position_alignment", "orientation", "size_range", "hole_presence"],
+    "expected_orientation_deg": 0,
+    "min_part_area_px": 5000,
+    "max_part_area_ratio": 0.8,
+    "min_contrast_std": 8,
+    "expected_center_px": [640, 400],
+    "center_tolerance_px": 40,
+    "max_tilt_deg": 5,
+    "border_margin_px": 5,
+    "expected_size_px": [400, 250],
+    "size_tolerance_ratio": 0.05,
+    "required_hole_count": 1,
+    "hole_area_px": [1500, 4000],
+    "expected_hole_centers_px": [],
+    "hole_center_tolerance_px": null,
+    "physical_dimensions_mm": null,
+    "physical_tolerance_mm": null
+  },
+  "calibration": {"required": false, "reference": null, "units": "px", "pixels_per_mm": null},
+  "preprocessing": {"contrast_clip_limit": 2.0},
+  "detector": {
+    "backend": "scenario_simulation",
+    "model_id": "scenario-driven-burr-simulator",
+    "model_version": "1.0.0",
+    "artifact_path": null,
+    "artifact_sha256": null,
+    "compatible_profiles": ["metal-plate-v1@1.0.0"],
+    "defect_classes": ["burr"]
+  },
+  "thresholds": {"fail_confidence": 0.8, "recheck_confidence": 0.5}
+}

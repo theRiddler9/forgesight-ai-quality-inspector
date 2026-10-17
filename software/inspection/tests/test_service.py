@@ -8,6 +8,7 @@ from software.backend.database import AuditStore
 from software.common.schemas import InspectionDecision
 from software.inspection.events import validate_event
 from software.inspection.service import ReplayService
+from software.profiles.registry import ProfileRegistry
 
 
 FIXTURES = Path(__file__).resolve().parents[2] / "fixtures"
@@ -73,13 +74,13 @@ def test_concurrent_replays_keep_each_committed_output_state(tmp_path, monkeypat
     clean_waiting = Event()
     burr_reached_builder = Event()
 
-    def delayed_event(result, scenario, packet, reason, fault=None):
+    def delayed_event(result, scenario, packet, reason, fault=None, profile=None):
         if scenario.name == "clean_part":
             clean_waiting.set()
             burr_reached_builder.wait(0.5)
         else:
             burr_reached_builder.set()
-        return original(result, scenario, packet, reason, fault)
+        return original(result, scenario, packet, reason, fault, profile)
 
     monkeypatch.setattr(service_module, "build_event", delayed_event)
     with ThreadPoolExecutor(max_workers=2) as pool:
@@ -90,3 +91,44 @@ def test_concurrent_replays_keep_each_committed_output_state(tmp_path, monkeypat
         burr = second.result()[0]
     assert clean["result"] == "PASS" and clean["mock_io_state"]["green"]
     assert burr["result"] == "FAIL" and burr["mock_io_state"]["red"]
+
+
+def test_profile_identity_is_persisted_and_thresholds_change_without_decision_rewrite(tmp_path):
+    catalog = Path(__file__).resolve().parents[2] / "profiles" / "catalog"
+    registry = ProfileRegistry(catalog)
+    service = ReplayService(AuditStore(tmp_path / "audit.sqlite3"), FIXTURES, registry)
+    first, _ = service.inspect("heavy_burr")
+    assert first["result"] == "FAIL"
+    assert first["component_profile"]["fingerprint"] == registry.active.fingerprint
+    assert first["model"]["runtime"] == "mock"
+    assert service.store.canonical_inspection(first["event_id"]) == first
+    second_profile = registry.active.model_copy(update={
+        "version": "1.0.1",
+        "thresholds": registry.active.thresholds.model_copy(update={"fail_confidence": 0.95}),
+        "detector": registry.active.detector.model_copy(update={"compatible_profiles": ["metal-plate-v1@1.0.1"]}),
+    })
+    registry._profiles[(second_profile.profile_id, second_profile.version)] = second_profile
+    registry.select("metal-plate-v1", "1.0.1")
+    second, _ = service.inspect("heavy_burr")
+    assert second["result"] == "RECHECK"
+    assert second["component_profile"]["fingerprint"] == second_profile.fingerprint
+    assert service.store.canonical_inspection(first["event_id"]) == first
+
+
+def test_unavailable_real_detector_cannot_pass(tmp_path):
+    catalog = Path(__file__).resolve().parents[2] / "profiles" / "catalog"
+    registry = ProfileRegistry(catalog)
+    real = registry.active.model_copy(update={
+        "version": "2.0.0",
+        "detector": registry.active.detector.model_copy(update={
+            "backend": "onnx", "artifact_path": "models/plate.onnx",
+            "artifact_sha256": "a" * 64, "compatible_profiles": ["metal-plate-v1@2.0.0"],
+        }),
+    })
+    registry._profiles[(real.profile_id, real.version)] = real
+    registry.select("metal-plate-v1", "2.0.0")
+    service = ReplayService(AuditStore(tmp_path / "audit.sqlite3"), FIXTURES, registry)
+    event, _ = service.inspect("clean_part")
+    assert event["result"] == "RECHECK"
+    assert event["faults"] == ["DETECTOR_UNAVAILABLE"]
+    assert not service.gpio.state.green

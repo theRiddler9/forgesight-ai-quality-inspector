@@ -10,6 +10,7 @@ import jsonschema
 
 from software.common.schemas import InspectionDecision, InspectionResult
 from software.inspection.replay import FramePacket, Scenario
+from software.profiles.models import ComponentProfile
 
 
 @lru_cache(maxsize=1)
@@ -42,6 +43,7 @@ def build_event(
     packet: FramePacket | None,
     decision_reason: str,
     fault_code: str | None = None,
+    profile: ComponentProfile | None = None,
 ) -> dict[str, Any]:
     """Create a schema-valid event without claiming a real part or trained model."""
     status = result.poka_yoke_status
@@ -117,5 +119,23 @@ def build_event(
         },
         "scenario": scenario.name,
     }
+    if profile is not None:
+        event["model"] = {
+            "name": profile.detector.model_id,
+            "version": profile.detector.model_version,
+            "runtime": "mock" if profile.detector.backend == "scenario_simulation" else profile.detector.backend,
+            "artifact_sha256": profile.detector.artifact_sha256,
+        }
+        event["configuration_version"] = f"{profile.profile_id}@{profile.version}"
+        event["component_profile"] = {
+            "id": profile.profile_id,
+            "version": profile.version,
+            "fingerprint": profile.fingerprint,
+            "validation_status": profile.validation_status,
+            "calibration_reference": profile.calibration.reference,
+            "thresholds": profile.thresholds.model_dump(),
+            "detector_backend": profile.detector.backend,
+        }
+        event["simulation"]["scenario_driven_detector"] = profile.detector.backend == "scenario_simulation"
     validate_event(event)
     return event
