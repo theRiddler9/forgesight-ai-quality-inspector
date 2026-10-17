@@ -32,7 +32,7 @@ cd software/frontend
 npm run dev
 ```
 
-Open `http://127.0.0.1:5173`. The Vite server proxies `/api` and `/ws` to the local backend. On restricted Windows installations where Vite's development dependency optimizer cannot traverse its parent directories, use `npm run build` followed by `npm run preview` and open `http://127.0.0.1:4173`. The preview server uses the same local API and WebSocket proxy. Keep the backend on port 8000 when using these proxies.
+Open `http://127.0.0.1:5173`. The Vite server proxies `/api` and `/ws` to the local backend. On restricted Windows installations where Vite's development dependency optimizer cannot traverse its parent directories, use `npm run build` followed by `npm run preview` and open `http://127.0.0.1:4173`. The preview server uses the same local API and WebSocket proxy. Keep the backend on port 8000 when using these proxies. In the current restricted Windows environment, `npm run dev` exits after esbuild reports `Cannot read directory "../../../../../..": Access is denied`; the build and preview path is verified and needs no security bypass.
 
 The backend defaults to `127.0.0.1:8000` and `data/audit.sqlite3`. Optional variables are `FORGESIGHT_DB_PATH`, `FORGESIGHT_FIXTURE_DIR`, `FORGESIGHT_API_HOST`, and `FORGESIGHT_API_PORT`. Use a new database path for an isolated demonstration. Bind to loopback: replay and review writes accept loopback clients only, and WebSocket connections accept local browser origins. There is no login system or network access policy for a factory LAN deployment.
 
@@ -63,9 +63,14 @@ cd software/frontend
 npm run typecheck
 npm run test
 npm run build
+npm run test:e2e
 ```
 
-The backend suite covers replay, actual OpenCV geometry checks, decision logic, mock I/O safe states, canonical schema validation, SQLite and review history, REST, WebSocket delivery, restart persistence, and all six scenarios. The HMI component suite covers status, simulated labels, history detail, and disconnection/reconnection. Browser automation and physical hardware validation are separate future work.
+The backend suite covers replay, actual OpenCV geometry checks, decision logic, mock I/O safe states, canonical schema validation, SQLite and review history, REST, WebSocket delivery, restart persistence, and all six scenarios. The HMI component suite covers status, simulation labels, history detail, and disconnection/reconnection.
+
+`npm run test:e2e` builds the HMI, then Playwright starts and stops its own backend and preview server. It uses a unique ignored database under `.tools/playwright-runs/` on each run. No running demo server is required; ports 8000 and 4173 must be free. Playwright uses installed Chrome or Edge on Windows, or a configured `FORGESIGHT_BROWSER` executable. If neither is available, install Playwright Chromium through the normal browser-install command where permitted. Set `FORGESIGHT_PYTHON` if `python` is not on `PATH`; the test runner also recognizes the local ignored `.tools/python/python.exe`. Browser tests click all six controls, inspect history and detail after refresh, submit a review, check metrics and pagination, interrupt/recover WebSocket delivery, restart the backend, and check desktop/mobile layout and keyboard activation. Optional `FORGESIGHT_CAPTURE_EVIDENCE=1` writes review screenshots to `evidence/recorded-image-slice/`.
+
+For a clean manual demo, set `FORGESIGHT_DB_PATH` to a new path such as `data/demo-2026-10-17.sqlite3` before starting the backend. This starts an empty audit trail without deleting an existing database. If the browser reports a disconnected backend, verify the backend health endpoint at `http://127.0.0.1:8000/api/v1/health`, keep the HMI preview on `127.0.0.1:4173`, and confirm both ports are free before restarting. A missing fixture should be checked against `fixtures/scenarios.json` and `FORGESIGHT_FIXTURE_DIR`. Do not present local timing, synthetic fixtures, or mock I/O as physical validation.
 
 ## Future integration
 

@@ -7,7 +7,7 @@
 
 ## Outcome
 
-**Recorded-image slice update (2026-10-17):** A repeatable synthetic virtual slice now exercises the edge pipeline, canonical SQLite event, API/WebSocket, and HMI. Automated tests cover all six decisions and mock I/O; setup is in `software/README.md`. The gate dashboard below remains open because its real-image, model, hardware, timing, and submission acceptance conditions have not all been met. Teammate modules live in `software/edge/`, `software/backend/`, and `software/common/`; `software/inspection/` adapts them to the canonical event contract without replacing their history.
+**Recorded-image slice update (2026-10-17):** A repeatable synthetic virtual slice now exercises the edge pipeline, canonical SQLite event, API/WebSocket, and HMI. Automated tests cover all six decisions and mock I/O; Chrome Playwright tests verify the rendered operator journey, reconnection, reviews, metrics, and restart persistence. Setup is in `software/README.md`, with screenshots in `evidence/recorded-image-slice/`. The gate dashboard below remains open because its real-image, model, hardware, timing, and submission acceptance conditions have not all been met. Teammate modules live in `software/edge/`, `software/backend/`, and `software/common/`; `software/inspection/` adapts them to the canonical event contract without replacing their history.
 
 Deliver a reproducible Stage 2 virtual prototype that takes a recorded inspection image through Poka-Yoke and burr detection, returns PASS / FAIL / RECHECK, records the event in SQLite, publishes it through FastAPI/WebSocket, displays it in the HMI, and produces traceable evidence for the final submission.
 
