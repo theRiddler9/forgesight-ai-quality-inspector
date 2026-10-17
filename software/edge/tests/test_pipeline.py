@@ -121,7 +121,8 @@ def test_camera_loss_shows_fault_and_trips_watchdog():
     assert pipe.run_once() is not None
     for _ in range(3):
         assert pipe.run_once() is None
-    assert lights(gpio) == (False, False, True, True)
+    assert lights(gpio) == (False, False, True, False)
+    assert gpio.state.ring_pwm_pct == 0
     assert [a.alert_type for a in pipe.watchdog.alerts] == [AlertType.CAMERA_DISCONNECTED]
 
 
@@ -164,7 +165,8 @@ def test_stall_fault_stays_latched_until_next_pass_decision():
         SyntheticCamera(seed=1), SlowOnceEngine([]), gpio, watchdog, lambda: 52.0
     )
     assert pipe.run_once().result == R.PASS
-    assert lights(gpio) == (False, False, True, True)
+    assert lights(gpio) == (False, False, True, False)
+    assert gpio.state.ring_pwm_pct == 0
     assert pipe.run_once().result == R.PASS
     assert lights(gpio) == (True, False, False, False)
 

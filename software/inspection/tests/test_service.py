@@ -1,4 +1,6 @@
 from pathlib import Path
+from concurrent.futures import ThreadPoolExecutor
+from threading import Event
 
 import pytest
 
@@ -61,3 +63,30 @@ def test_persistence_failure_forces_safe_mock_state(tmp_path, monkeypatch):
         service.inspect("clean_part")
     assert not service.gpio.state.green
     assert service.gpio.state.amber
+
+
+def test_concurrent_replays_keep_each_committed_output_state(tmp_path, monkeypatch):
+    service = ReplayService(AuditStore(tmp_path / "audit.sqlite3"), FIXTURES)
+    from software.inspection import service as service_module
+
+    original = service_module.build_event
+    clean_waiting = Event()
+    burr_reached_builder = Event()
+
+    def delayed_event(result, scenario, packet, reason, fault=None):
+        if scenario.name == "clean_part":
+            clean_waiting.set()
+            burr_reached_builder.wait(0.5)
+        else:
+            burr_reached_builder.set()
+        return original(result, scenario, packet, reason, fault)
+
+    monkeypatch.setattr(service_module, "build_event", delayed_event)
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        first = pool.submit(service.inspect, "clean_part")
+        assert clean_waiting.wait(2)
+        second = pool.submit(service.inspect, "heavy_burr")
+        clean = first.result()[0]
+        burr = second.result()[0]
+    assert clean["result"] == "PASS" and clean["mock_io_state"]["green"]
+    assert burr["result"] == "FAIL" and burr["mock_io_state"]["red"]

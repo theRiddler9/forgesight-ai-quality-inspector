@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import logging
+import threading
 from pathlib import Path
 from uuid import UUID
 
@@ -59,8 +60,13 @@ class ReplayService:
         self.store = store
         self.catalog = ScenarioCatalog(fixture_dir)
         self.gpio = MockGPIOController()
+        self._lock = threading.Lock()
 
     def inspect(self, scenario_name: str, event_id: str | None = None) -> tuple[dict, bool]:
+        with self._lock:
+            return self._inspect_unlocked(scenario_name, event_id)
+
+    def _inspect_unlocked(self, scenario_name: str, event_id: str | None) -> tuple[dict, bool]:
         scenario = self.catalog.get(scenario_name)
         requested_id = UUID(event_id) if event_id else None
         if requested_id is not None:

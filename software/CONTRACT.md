@@ -58,9 +58,9 @@ These are placeholders until Riya selects them from the precision-recall curve.
 | PASS | on | | | |
 | FAIL | | on | | on |
 | RECHECK | | | on | |
-| Fault (camera loss, stall) | | | on | on |
+| Fault (camera loss, stall) | | | on | |
 
-> **Assumption — confirm with Kartikay**, who owns signalling behaviour.
+> Fault behavior follows `software/contracts/io-interface.md`: ring illumination and buzzer are off. Kartikay must still approve physical signalling and pin mapping.
 
 ## 5. WebSocket (`/ws/live`)
 
