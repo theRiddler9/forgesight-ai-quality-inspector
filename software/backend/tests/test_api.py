@@ -74,6 +74,19 @@ def test_empty_read_routes_have_contract_shapes_and_cors(tmp_path):
     assert cors.headers["access-control-allow-origin"] == "http://localhost:5173"
 
 
+def test_component_profiles_are_read_only_and_identified(tmp_path):
+    with TestClient(create_app(tmp_path / "audit.sqlite3")) as client:
+        response = client.get("/api/v1/component-profiles")
+    assert response.status_code == 200
+    assert response.json()["active"] == "metal-plate-v1@1.0.0"
+    profile = response.json()["profiles"][0]
+    assert profile["id"] == "metal-plate-v1"
+    assert profile["validation_status"] == "provisional"
+    assert profile["replay_suitable"]
+    assert not profile["real_inspection_ready"]
+    assert len(profile["fingerprint"]) == 64
+
+
 def test_database_initialization_runs_outside_the_async_event_loop(tmp_path, monkeypatch):
     original_initialize = AuditStore.initialize
     calls = []

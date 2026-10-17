@@ -24,6 +24,8 @@ class DetectorOutput:
     model_version: str
     duration_ms: float
     coordinate_system: Literal["image_pixels"] = "image_pixels"
+    segmentation_polygons_normalized: tuple[tuple[tuple[float, float], ...], ...] | None = None
+    uncertain: bool = False
     simulated: bool = True
 
 
@@ -58,6 +60,7 @@ class ScenarioDetector:
             model_id=self.profile.detector.model_id,
             model_version=self.profile.detector.model_version,
             duration_ms=round((time.perf_counter() - start) * 1000, 3),
+            uncertain=bool(detections and self.profile.thresholds.recheck_confidence <= detections[0].confidence < self.profile.thresholds.fail_confidence),
         )
 
     def infer(self, frame: np.ndarray) -> list[DetectionBox]:

@@ -32,12 +32,15 @@ def test_default_profile_loads_and_fingerprint_is_stable():
     lambda p: p.update(version="v1"),
     lambda p: p["image"].update(width=-1),
     lambda p: p["roi"].update(x=0.9, width=0.2),
+    lambda p: p["roi"].update(x=0.1, width=0.8),
     lambda p: p["geometry"].update(rules=["magic_rule"]),
     lambda p: p["detector"].update(backend="tensorflow"),
     lambda p: p["thresholds"].update(fail_confidence=0.4),
     lambda p: p["detector"].update(compatible_profiles=["other@1.0.0"]),
     lambda p: p["geometry"].update(physical_dimensions_mm=[-1, 20]),
+    lambda p: p["geometry"].update(expected_center_px=[9999, 400]),
     lambda p: p["calibration"].update(required=True),
+    lambda p: p["detector"].update(artifact_path="fake.onnx"),
 ])
 def test_invalid_profiles_are_rejected(edit):
     data = profile_data()

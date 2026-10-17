@@ -200,6 +200,27 @@ def create_app(db_path: str | Path | None = None, fixture_dir: str | Path | None
     async def scenarios(request: Request) -> list[str]:
         return request.app.state.replay_service.catalog.names()
 
+    @app.get("/api/v1/component-profiles")
+    async def component_profiles(request: Request) -> dict:
+        registry = request.app.state.replay_service.profiles
+        return {
+            "active": f"{registry.active.profile_id}@{registry.active.version}",
+            "profiles": [
+                {
+                    "id": profile.profile_id,
+                    "version": profile.version,
+                    "display_name": profile.display_name,
+                    "category": profile.category,
+                    "fingerprint": profile.fingerprint,
+                    "validation_status": profile.validation_status,
+                    "replay_suitable": profile.replay_suitable,
+                    "real_inspection_ready": profile.real_inspection_ready,
+                    "detector_backend": profile.detector.backend,
+                }
+                for profile in registry.list_profiles()
+            ],
+        }
+
     @app.get("/api/v1/fixtures/{scenario_name}")
     async def fixture_preview(request: Request, scenario_name: str):
         service: ReplayService = request.app.state.replay_service

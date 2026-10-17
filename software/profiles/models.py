@@ -169,6 +169,12 @@ class ComponentProfile(StrictModel):
             raise ValueError("physical dimensions require calibration")
         if self.validation_status == "real_approved" and (not self.calibration.required or self.detector.backend == "scenario_simulation"):
             raise ValueError("real approval requires calibration and a real detector")
+        if not (0 <= self.geometry.expected_center_px[0] < self.image.width and 0 <= self.geometry.expected_center_px[1] < self.image.height):
+            raise ValueError("expected center must lie inside the image")
+        if self.geometry.min_part_area_px >= self.image.width * self.image.height:
+            raise ValueError("minimum part area exceeds image area")
+        if any(not (0 <= x < self.image.width and 0 <= y < self.image.height) for x, y in self.geometry.expected_hole_centers_px):
+            raise ValueError("expected hole center must lie inside the image")
         if self.geometry.adapter == "rectangular_plate_v1" and (self.roi.x, self.roi.y, self.roi.width, self.roi.height) != (0, 0, 1, 1):
             raise ValueError("rectangular_plate_v1 currently requires a full-frame ROI")
         return self
