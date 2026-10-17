@@ -1,6 +1,8 @@
 from pathlib import Path
 
+import pytest
 from fastapi.testclient import TestClient
+from starlette.websockets import WebSocketDisconnect
 
 from software.backend.app import create_app
 from software.inspection.events import validate_event
@@ -76,3 +78,42 @@ def test_database_failure_does_not_broadcast(tmp_path, monkeypatch):
         assert response.status_code == 503
         assert client.get("/api/v1/inspections").json()["total"] == 0
         assert app.state.websocket_hub.client_count == 0
+
+
+@pytest.mark.parametrize("scenario,result", [
+    ("clean_part", "PASS"), ("heavy_burr", "FAIL"),
+    ("uncertain_burr", "RECHECK"), ("missing_hole", "FAIL"),
+    ("no_part", "RECHECK"), ("capture_fault", "RECHECK"),
+])
+def test_scenario_commits_before_websocket_and_survives_restart(tmp_path, scenario, result):
+    db_path = tmp_path / "audit.sqlite3"
+    with TestClient(create_app(db_path, fixture_dir=FIXTURES)) as client:
+        with client.websocket_connect("/ws/inspections") as ws:
+            response = client.post("/api/v1/inspections/replay", json={"scenario": scenario})
+            assert response.status_code == 200
+            event = response.json()["event"]
+            validate_event(event)
+            assert event["result"] == result
+            assert client.get(f"/api/v1/inspections/{event['event_id']}").json() == event
+            assert ws.receive_json() == {"event": "inspection_event", "data": event}
+    with TestClient(create_app(db_path, fixture_dir=FIXTURES)) as restarted:
+        assert restarted.get(f"/api/v1/inspections/{event['event_id']}").json() == event
+
+
+def test_websocket_rejects_foreign_origin(tmp_path):
+    with TestClient(create_app(tmp_path / "audit.sqlite3", fixture_dir=FIXTURES)) as client:
+        with pytest.raises(WebSocketDisconnect):
+            with client.websocket_connect("/ws/inspections", headers={"origin": "https://other.example"}):
+                pass
+
+
+def test_publish_failure_leaves_committed_event_retrievable(tmp_path, monkeypatch):
+    app = create_app(tmp_path / "audit.sqlite3", fixture_dir=FIXTURES)
+    with TestClient(app) as client:
+        def fail(_event):
+            raise RuntimeError("socket fanout unavailable")
+        monkeypatch.setattr(app.state.websocket_hub, "publish", fail)
+        response = client.post("/api/v1/inspections/replay", json={"scenario": "clean_part"})
+        assert response.status_code == 200
+        event = response.json()["event"]
+        assert client.get(f"/api/v1/inspections/{event['event_id']}").json() == event

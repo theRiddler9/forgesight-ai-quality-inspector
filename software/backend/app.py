@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 import sqlite3
 import time
 from contextlib import asynccontextmanager
@@ -26,6 +27,7 @@ from software.inspection.replay import ReplayError
 from software.inspection.service import ReplayService
 
 _MIB = 1024 * 1024
+log = logging.getLogger(__name__)
 _LOCAL_HMI_ORIGIN = "http://localhost:5173"
 _LOCAL_ORIGINS = {_LOCAL_HMI_ORIGIN, "http://127.0.0.1:5173"}
 _LOOPBACK_CLIENTS = {"127.0.0.1", "::1", "testclient"}
@@ -219,7 +221,11 @@ def create_app(db_path: str | Path | None = None, fixture_dir: str | Path | None
         except (sqlite3.Error, OSError, RuntimeError) as exc:
             raise HTTPException(status_code=503, detail="inspection or audit unavailable") from exc
         if inserted:
-            request.app.state.websocket_hub.publish({"event": "inspection_event", "data": event})
+            try:
+                request.app.state.websocket_hub.publish({"event": "inspection_event", "data": event})
+            except Exception:
+                # The committed record remains authoritative; REST history repairs missed live updates.
+                log.exception("inspection committed but live event publication failed: %s", event["event_id"])
         return ReplayResponse(event=event, inserted=inserted)
 
     @app.get("/api/v1/inspections")
