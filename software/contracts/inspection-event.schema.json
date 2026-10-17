@@ -78,6 +78,21 @@
         "minLength": 1
       },
       "uniqueItems": true
+    },
+    "decision_reasons": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "simulation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["synthetic_fixture", "scenario_driven_detector", "mock_io"],
+      "properties": {
+        "synthetic_fixture": { "const": true },
+        "scenario_driven_detector": { "const": true },
+        "mock_io": { "const": true }
+      }
     }
   },
   "$defs": {
@@ -164,7 +179,7 @@
         "source_id": { "type": "string", "minLength": 1 },
         "input_uri": { "type": "string", "minLength": 1 },
         "evidence_uri": { "type": ["string", "null"] },
-        "sha256": { "type": "string", "pattern": "^[a-fA-F0-9]{64}$" }
+        "sha256": { "type": ["string", "null"], "pattern": "^[a-fA-F0-9]{64}$" }
       }
     },
     "modelReference": {
