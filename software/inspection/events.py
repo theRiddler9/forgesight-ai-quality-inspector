@@ -115,6 +115,7 @@ def build_event(
             "scenario_driven_detector": True,
             "mock_io": True,
         },
+        "scenario": scenario.name,
     }
     validate_event(event)
     return event

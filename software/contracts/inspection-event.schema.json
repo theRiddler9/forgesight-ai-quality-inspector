@@ -94,6 +94,7 @@
         "mock_io": { "const": true }
       }
     },
+    "scenario": { "type": "string", "minLength": 1 },
     "mock_io_state": {
       "type": "object",
       "additionalProperties": false,
