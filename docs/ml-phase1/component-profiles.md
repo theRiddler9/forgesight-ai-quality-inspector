@@ -1,0 +1,21 @@
+# Component profiles (Phase 1)
+
+`software/profiles/catalog/metal-plate-v1.json` is the provisional reference for the **synthetic** 1280 × 800 replay. `software/profiles/models.py` validates it at service startup. The registry (`registry.py`) selects a profile by ID and semantic version and computes a SHA-256 fingerprint of its canonical JSON. Every new replay event stores that ID, version, fingerprint, validation status, calibration reference, detector backend, model reference, and decision thresholds. Older events remain valid without `component_profile`; SQLite stores the canonical JSON unchanged. `GET /api/v1/component-profiles` lists metadata but does not permit remote selection or threshold changes.
+
+Profile fields cover image format, normalized ROI, geometry adapter and rules, pixel-space tolerances, optional physical calibration, preprocessing, detector metadata, compatible profile versions, classes, and decision thresholds. The current `rectangular_plate_v1` adapter uses the team's OpenCV plate checks. Its ROI must be full-frame, orientation zero, and at most one required hole because the current algorithm cannot enforce arbitrary ROIs, hole locations, or multiple holes. Unsupported combinations are rejected rather than quietly ignored. The replay fixture dimensions must match the profile. No physical millimeter claims follow from pixel measurements.
+
+Syntactic validation is distinct from replay suitability and physical approval. `provisional` is the current status. `replay_validated` records software replay validation only. `real_approved` additionally requires calibration and real-backend metadata, but **real inspection remains unavailable in this phase**. ONNX and RKNN profiles fail closed: there is no runtime adapter, model artifact verification, or measured calibration yet. A real model needs a verified artifact hash, compatible component version, trained classes, calibrated thresholds, and held-out validation before an adapter is enabled. Do not set a profile to approved merely because its JSON parses.
+
+## Add another component
+
+1. Copy the profile into a new versioned JSON file under `software/profiles/catalog/`. Change ID, version, name, category, image conditions, and compatible model list. Add tests for validation and scenario behavior.
+2. Choose a geometry adapter that implements every required rule. The current plate adapter cannot handle washer geometry. A future `washer-v1` profile could specify `category: "washer"` and `geometry.adapter: "annular_v1"`; its schema and new adapter would need explicit inner/outer contour rules. The schema recognizes `annular_v1` as a future adapter, but the replay service returns RECHECK/`UNSUPPORTED_PROFILE` until implemented and tested.
+3. Record camera calibration and units if physical dimensions matter. Retain raw calibration evidence and its reference outside the Git repository. Pixel tolerances are insufficient for a physical acceptance claim.
+4. Train or obtain a component-compatible model using licensed, representative real images. Record model ID/version, hash, classes, preprocessing, and calibration. Implement and verify the ONNX or RKNN adapter; do not route to mock predictions.
+5. Validate geometry, defect behavior, fail/recheck thresholds, latency, and electrical integration independently before physical deployment.
+
+The stable shared decision engine, REST API, SQLite store, HMI, and mock I/O need no component-specific branches. The active profile is selected in-process via `ProfileRegistry.select(id, version)`. Runtime mutation is intentionally absent from the operator API; select a reviewed configuration at service startup in a future deployment.
+
+## Detector boundary
+
+`software/inspection/detectors.py` defines a backend-neutral `DetectorOutput`: detections with class/confidence/image-pixel box, coordinate system, model identity, backend, duration, and a simulation flag. The legacy edge pipeline still consumes `.infer()` and the shared `DetectionBox` type. The scenario adapter maps explicit scenario metadata to that type; `[0,0,0,0]` means **no image-derived location** and the canonical event uses `bbox_normalized: null`. ONNX/RKNN adapters currently raise `DetectorUnavailable`; a capture or adapter fault yields RECHECK and amber mock state. No inference result or performance is fabricated.

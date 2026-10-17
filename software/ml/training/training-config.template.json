@@ -1,0 +1,38 @@
+{
+  "config_version": "1.0.0",
+  "component_profile": "metal-plate-v1@1.0.0",
+  "dataset_version": null,
+  "dataset_manifest": null,
+  "architecture": null,
+  "input_width": 1280,
+  "input_height": 800,
+  "classes": null,
+  "training": {
+    "epochs": null,
+    "batch_size": null,
+    "learning_rate": null,
+    "random_seed": null
+  },
+  "augmentation": {
+    "enabled": null,
+    "lighting": null,
+    "rotation_degrees": null,
+    "horizontal_flip": null
+  },
+  "validation": {
+    "group_by": "physical_part_id",
+    "held_out_test": true,
+    "threshold_selection_split": "validation"
+  },
+  "export_target": null,
+  "thresholds": {
+    "fail_confidence": null,
+    "recheck_confidence": null
+  },
+  "hardware_constraints": {
+    "target": "Orange Pi 5 / RK3588S",
+    "latency_target_ms": 100,
+    "memory_limit_mb": null,
+    "model_size_limit_mb": null
+  }
+}
