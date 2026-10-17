@@ -14,6 +14,8 @@ Syntactic validation is distinct from replay suitability and physical approval. 
 4. Train or obtain a component-compatible model using licensed, representative real images. Record model ID/version, hash, classes, preprocessing, and calibration. Implement and verify the ONNX or RKNN adapter; do not route to mock predictions.
 5. Validate geometry, defect behavior, fail/recheck thresholds, latency, and electrical integration independently before physical deployment.
 
+For example, the start of a future profile might be `{"profile_id":"washer-v1","version":"1.0.0","category":"washer","validation_status":"provisional","geometry":{"adapter":"annular_v1", "...":"new validated annular rules"},"detector":{"backend":"onnx", "...":"verified washer model metadata"}}`. This is an **illustrative sketch**, not loadable configuration; first implement the annular rule schema/adapter, obtain calibration and a trained compatible model, and validate all mandatory fields. It is neither calibrated nor production ready.
+
 The stable shared decision engine, REST API, SQLite store, HMI, and mock I/O need no component-specific branches. The active profile is selected in-process via `ProfileRegistry.select(id, version)`. Runtime mutation is intentionally absent from the operator API; select a reviewed configuration at service startup in a future deployment.
 
 ## Detector boundary

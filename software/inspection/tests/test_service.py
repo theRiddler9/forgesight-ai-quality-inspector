@@ -132,3 +132,37 @@ def test_unavailable_real_detector_cannot_pass(tmp_path):
     assert event["result"] == "RECHECK"
     assert event["faults"] == ["DETECTOR_UNAVAILABLE"]
     assert not service.gpio.state.green
+
+
+def test_unsupported_geometry_profile_fails_closed(tmp_path):
+    catalog = Path(__file__).resolve().parents[2] / "profiles" / "catalog"
+    registry = ProfileRegistry(catalog)
+    unsupported = registry.active.model_copy(update={
+        "version": "3.0.0",
+        "geometry": registry.active.geometry.model_copy(update={"adapter": "annular_v1"}),
+        "detector": registry.active.detector.model_copy(update={"compatible_profiles": ["metal-plate-v1@3.0.0"]}),
+    })
+    registry._profiles[(unsupported.profile_id, unsupported.version)] = unsupported
+    registry.select("metal-plate-v1", "3.0.0")
+    service = ReplayService(AuditStore(tmp_path / "audit.sqlite3"), FIXTURES, registry)
+    event, _ = service.inspect("clean_part")
+    assert event["result"] == "RECHECK"
+    assert event["faults"] == ["UNSUPPORTED_PROFILE"]
+    assert service.store.canonical_inspection(event["event_id"]) == event
+
+
+def test_profile_image_mismatch_fails_closed(tmp_path):
+    catalog = Path(__file__).resolve().parents[2] / "profiles" / "catalog"
+    registry = ProfileRegistry(catalog)
+    mismatched = registry.active.model_copy(update={
+        "version": "4.0.0",
+        "image": registry.active.image.model_copy(update={"width": 640}),
+        "detector": registry.active.detector.model_copy(update={"compatible_profiles": ["metal-plate-v1@4.0.0"]}),
+    })
+    registry._profiles[(mismatched.profile_id, mismatched.version)] = mismatched
+    registry.select("metal-plate-v1", "4.0.0")
+    service = ReplayService(AuditStore(tmp_path / "audit.sqlite3"), FIXTURES, registry)
+    event, _ = service.inspect("clean_part")
+    assert event["result"] == "RECHECK"
+    assert event["faults"] == ["FRAME_FORMAT_MISMATCH"]
+    assert not service.gpio.state.green
