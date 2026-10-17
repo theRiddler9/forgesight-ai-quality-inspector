@@ -114,6 +114,15 @@ def test_websocket_accepts_local_preview_origin(tmp_path):
             assert ws.receive_json()["data"]["event_id"] == response.json()["event"]["event_id"]
 
 
+def test_health_mock_output_uses_canonical_ring_field(tmp_path):
+    with TestClient(create_app(tmp_path / "audit.sqlite3", fixture_dir=FIXTURES)) as client:
+        client.post("/api/v1/inspections/replay", json={"scenario": "capture_fault"})
+        output = client.get("/api/v1/health").json()["mock_io_state"]
+        assert output["amber"] is True
+        assert output["ring_light_pwm"] == 0
+        assert "ring_pwm_pct" not in output
+
+
 def test_publish_failure_leaves_committed_event_retrievable(tmp_path, monkeypatch):
     app = create_app(tmp_path / "audit.sqlite3", fixture_dir=FIXTURES)
     with TestClient(app) as client:

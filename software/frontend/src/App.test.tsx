@@ -87,3 +87,10 @@ test('history selection shows decision details', async () => {
   expect(await screen.findByText(/Decision reason/)).toBeInTheDocument();
   expect(screen.getByText(/virtual-profile-v1/)).toBeInTheDocument();
 });
+
+test('connected health does not claim no fault before a current inspection exists', async () => {
+  render(<App />);
+  act(() => FakeSocket.instances[0].onopen?.());
+  const health = screen.getByRole('heading', { name: 'System health' }).parentElement;
+  await waitFor(() => expect(health).toHaveTextContent('Current fault: unknown; select an inspection'));
+});

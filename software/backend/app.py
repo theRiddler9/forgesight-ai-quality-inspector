@@ -189,7 +189,11 @@ def create_app(db_path: str | Path | None = None, fixture_dir: str | Path | None
         return {
             "status": "ok", "frame_source": "synthetic recorded replay",
             "detector": "scenario-driven simulation", "io": "mock",
-            "mock_io_state": vars(state),
+            "mock_io_state": {
+                "green": state.green, "red": state.red,
+                "amber": state.amber, "buzzer": state.buzzer,
+                "ring_light_pwm": state.ring_pwm_pct,
+            },
         }
 
     @app.get("/api/v1/scenarios")

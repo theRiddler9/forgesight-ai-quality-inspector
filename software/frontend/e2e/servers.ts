@@ -16,17 +16,29 @@ export class LocalServers {
 
   async start(): Promise<void> {
     mkdirSync(this.runDir, { recursive: true });
+    await this.startBackend();
+    this.preview = this.launch(process.execPath, [
+      resolve(frontendRoot, 'node_modules/vite/bin/vite.js'),
+      'preview', '--configLoader', 'runner', '--host', '127.0.0.1', '--port', '4173', '--strictPort',
+    ], frontendRoot);
+    await this.waitFor('http://127.0.0.1:4173/api/v1/health', this.preview);
+  }
+
+  async startBackend(): Promise<void> {
     this.backend = this.launch(python, ['-m', 'software.backend'], repoRoot, {
       FORGESIGHT_DB_PATH: this.dbPath,
       FORGESIGHT_API_HOST: '127.0.0.1',
       FORGESIGHT_API_PORT: '8000',
     });
     await this.waitFor('http://127.0.0.1:8000/health', this.backend);
-    this.preview = this.launch(process.execPath, [
-      resolve(frontendRoot, 'node_modules/vite/bin/vite.js'),
-      'preview', '--configLoader', 'runner', '--host', '127.0.0.1', '--port', '4173', '--strictPort',
-    ], frontendRoot);
-    await this.waitFor('http://127.0.0.1:4173/api/v1/health', this.preview);
+  }
+
+  async stopBackend(): Promise<void> {
+    const child = this.backend;
+    if (!child || child.exitCode !== null || child.signalCode !== null) return;
+    const exited = new Promise<void>(resolve => child.once('exit', () => resolve()));
+    child.kill();
+    await exited;
   }
 
   private launch(executable: string, args: string[], cwd: string, env: Record<string, string> = {}): ChildProcess {
@@ -50,8 +62,7 @@ export class LocalServers {
   }
 
   async stop(): Promise<void> {
-    for (const child of [this.preview, this.backend]) {
-      if (child && child.exitCode === null) child.kill();
-    }
+    if (this.preview && this.preview.exitCode === null) this.preview.kill();
+    await this.stopBackend();
   }
 }

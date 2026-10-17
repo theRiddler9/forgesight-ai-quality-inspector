@@ -6,8 +6,9 @@ const palette = {
   RECHECK: 'border-amber-400 bg-amber-400/10 text-amber-200',
 };
 
-export default function InspectionStatus({ event, connected }: { event: InspectionEvent | null; connected: boolean }) {
+export default function InspectionStatus({ event, connected, busy = false }: { event: InspectionEvent | null; connected: boolean; busy?: boolean }) {
   if (!connected) return <div role="status" className="rounded-2xl border border-slate-500 bg-slate-700/50 p-8 text-center text-2xl font-bold text-slate-100">Disconnected · current result unknown</div>;
+  if (busy) return <div role="status" className="rounded-2xl border border-sky-500/70 bg-sky-500/10 p-8 text-center text-2xl font-bold text-sky-100">Inspection in progress · result pending</div>;
   if (!event) return <div role="status" className="rounded-2xl border border-sky-500/70 bg-sky-500/10 p-8 text-center text-2xl font-bold text-sky-100">Ready for a replay inspection</div>;
   return <div role="status" className={`rounded-2xl border-2 p-7 text-center ${palette[event.result]}`}>
     <div className="text-xs font-bold uppercase tracking-[0.3em]">Latest simulated inspection</div>
