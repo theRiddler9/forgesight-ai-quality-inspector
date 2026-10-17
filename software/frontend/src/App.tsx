@@ -147,8 +147,10 @@ export default function App() {
             <div className="flex justify-between gap-3"><strong className={STATUS_COLORS[selected.result]}>{selected.result}</strong><span>{timestamp(selected.timestamp)}</span></div>
             <div className="break-all text-xs text-slate-400">ID: {selected.event_id}</div>
             <div><strong>Decision reason:</strong> {selected.decision_reasons.join('; ')}</div>
+            <div><strong>Geometry checks:</strong><ul className="ml-5 list-disc">{Object.entries(selected.poka_yoke).filter(([key]) => key !== 'reasons').map(([key, value]) => <li key={key}>{key.replaceAll('_', ' ')}: {checkText(value as boolean | null)}</li>)}</ul>{selected.poka_yoke.reasons.length > 0 && <div>Geometry reasons: {selected.poka_yoke.reasons.join('; ')}</div>}</div>
             <div><strong>Image reference:</strong> {selected.image.input_uri} · SHA-256 {selected.image.sha256 ?? 'unavailable'}</div>
             <div><strong>Detector:</strong> {selected.model.name} ({selected.model.runtime}); confidence {selected.defects[0]?.confidence?.toFixed(2) ?? 'none'}</div>
+            <div><strong>Simulation:</strong> {[selected.simulation.synthetic_fixture && 'synthetic fixture', selected.simulation.scenario_driven_detector && 'scenario-driven detector', selected.simulation.mock_io && 'mock I/O'].filter(Boolean).join(', ')}</div>
             <div><strong>Faults:</strong> {selected.faults.join(', ') || 'none'}</div>
             <div><strong>Configuration:</strong> {selected.configuration_version}</div>
             <div><strong>Timing:</strong> {Object.entries(selected.latency_ms).map(([key, value]) => `${key} ${value.toFixed(1)} ms`).join(' · ')}</div>
