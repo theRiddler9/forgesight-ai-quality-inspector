@@ -27,6 +27,8 @@ data/
 Thumbs.db
 .vscode/
 .idea/
+.tools/
+.npm-cache/
 
 # SolidWorks / KiCad temp and backup files (keep native files, drop temp ones)
 ~$*
