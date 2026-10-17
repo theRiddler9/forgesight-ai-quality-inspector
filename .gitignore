@@ -1,0 +1,36 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+env/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.egg-info/
+build/
+dist/
+
+# Node / frontend
+node_modules/
+software/frontend/dist/
+
+# Runtime output (never commit)
+data/
+*.db
+*.sqlite3
+*.log
+.env
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# SolidWorks / KiCad temp and backup files (keep native files, drop temp ones)
+~$*
+*.SLDPRT.bak
+*-backups/
+fp-info-cache
+*.kicad_prl

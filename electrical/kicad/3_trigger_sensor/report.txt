@@ -1,0 +1,3 @@
+Plotted to 'C:\Users\karti\Desktop\Projects\forgesight-ai-quality-inspector\electrical\kicad\3_trigger_sensor\4_indicator_driver\4_indicator_driver.pdf'.
+
+Info: Done.

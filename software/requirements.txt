@@ -1,0 +1,7 @@
+# Runtime dependencies shared by the edge runtime and the backend.
+numpy>=1.26
+opencv-python-headless>=4.9
+pydantic>=2.5
+fastapi>=0.110
+uvicorn[standard]>=0.29
+psutil>=5.9
