@@ -64,6 +64,21 @@ test('disconnect hides current PASS and reconnect reloads history', async () => 
   await waitFor(() => expect(vi.mocked(fetch).mock.calls.length).toBeGreaterThan(callsBefore));
 });
 
+test.each([
+  ['FAIL', 'heavy_burr'],
+  ['RECHECK', 'uncertain_burr'],
+  ['RECHECK', 'capture_fault'],
+] as const)('live %s event from %s is visible, then cleared on disconnect', async (result, scenario) => {
+  render(<App />);
+  const socket = FakeSocket.instances[0];
+  act(() => socket.onopen?.());
+  act(() => socket.onmessage?.({ data: JSON.stringify({ event: 'inspection_event', data: { ...event, result, scenario } }) }));
+  await waitFor(() => expect(within(screen.getByRole('status')).getByText(result, { exact: true })).toBeInTheDocument());
+  act(() => socket.onclose?.());
+  expect(within(screen.getByRole('status')).getByText(/Disconnected/)).toBeInTheDocument();
+  expect(within(screen.getByRole('status')).queryByText(result, { exact: true })).not.toBeInTheDocument();
+});
+
 test('history selection shows decision details', async () => {
   render(<App />);
   act(() => FakeSocket.instances[0].onopen?.());

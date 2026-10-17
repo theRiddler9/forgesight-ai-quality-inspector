@@ -26,6 +26,8 @@ Everything runs locally on the edge device. No cloud dependency.
 
 ## Execution Plan
 
+**Implemented virtual slice:** The local recorded-image prototype now runs six synthetic scenarios through OpenCV geometry checks, a scenario-driven burr simulator, PASS / FAIL / RECHECK decisions, mock I/O, SQLite, FastAPI/WebSocket, and a React HMI. See [software setup and demo](software/README.md). The model, Orange Pi, and physical system described below are target architecture; their performance and safety have not been validated by this software slice.
+
 - [Stage 2 master work plan](docs/forgesight-stage2-work-plan.md)
 - [Riya's Stage 2 execution workflow](docs/workflows/riya-stage2-execution-workflow.md)
 

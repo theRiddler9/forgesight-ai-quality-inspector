@@ -28,8 +28,11 @@ from software.inspection.service import ReplayService
 
 _MIB = 1024 * 1024
 log = logging.getLogger(__name__)
-_LOCAL_HMI_ORIGIN = "http://localhost:5173"
-_LOCAL_ORIGINS = {_LOCAL_HMI_ORIGIN, "http://127.0.0.1:5173"}
+_LOCAL_ORIGINS = {
+    f"http://{host}:{port}"
+    for host in ("localhost", "127.0.0.1")
+    for port in (5173, 4173)
+}
 _LOOPBACK_CLIENTS = {"127.0.0.1", "::1", "testclient"}
 
 

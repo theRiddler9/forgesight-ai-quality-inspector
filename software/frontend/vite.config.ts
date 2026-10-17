@@ -5,5 +5,6 @@ import tailwindcss from '@tailwindcss/vite';
 export default defineConfig({
   plugins: [react(), tailwindcss()],
   server: { host: '127.0.0.1', proxy: { '/api': 'http://127.0.0.1:8000', '/ws': { target: 'ws://127.0.0.1:8000', ws: true } } },
+  preview: { host: '127.0.0.1', proxy: { '/api': 'http://127.0.0.1:8000', '/ws': { target: 'ws://127.0.0.1:8000', ws: true } } },
   test: { environment: 'jsdom', setupFiles: ['./src/test-setup.ts'], css: true },
 });

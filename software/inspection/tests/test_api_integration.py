@@ -107,6 +107,13 @@ def test_websocket_rejects_foreign_origin(tmp_path):
                 pass
 
 
+def test_websocket_accepts_local_preview_origin(tmp_path):
+    with TestClient(create_app(tmp_path / "audit.sqlite3", fixture_dir=FIXTURES)) as client:
+        with client.websocket_connect("/ws/inspections", headers={"origin": "http://127.0.0.1:4173"}) as ws:
+            response = client.post("/api/v1/inspections/replay", json={"scenario": "clean_part"})
+            assert ws.receive_json()["data"]["event_id"] == response.json()["event"]["event_id"]
+
+
 def test_publish_failure_leaves_committed_event_retrievable(tmp_path, monkeypatch):
     app = create_app(tmp_path / "audit.sqlite3", fixture_dir=FIXTURES)
     with TestClient(app) as client:
