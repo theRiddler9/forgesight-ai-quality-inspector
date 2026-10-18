@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import logging
+import hashlib
 import threading
 from pathlib import Path
 from uuid import UUID
@@ -15,7 +16,7 @@ from software.edge.decision.engine import decide
 from software.edge.io_control.gpio import MockGPIOController
 from software.edge.pipeline import InspectionPipeline
 from software.edge.watchdog.monitor import Watchdog
-from software.inspection.events import build_event
+from software.inspection.events import build_event, validate_event
 from software.inspection.detectors import detector_for, DetectorUnavailable
 from software.inspection.replay import ReplayError, ReplayFrameSource, Scenario, ScenarioCatalog
 from software.inspection.local_image import LocalImageFrameSource
@@ -182,11 +183,16 @@ class ReplayService:
                       decide(result.poka_yoke_status, result.detections, profile.edge_config().thresholds).reason)
             event = build_event(result, scenario, source.last_packet, reason, fault, profile,
                                 inspection_mode="local_image", model_purpose=manifest.model_purpose)
+            if source.last_packet is None and raw:
+                digest = hashlib.sha256(raw).hexdigest()
+                event["image"]["sha256"] = digest
+                event["image"]["input_uri"] = f"local-image:sha256:{digest}"
             event["mock_io_state"] = {
                 "green": self.gpio.state.green, "red": self.gpio.state.red,
                 "amber": self.gpio.state.amber, "buzzer": self.gpio.state.buzzer,
                 "ring_light_pwm": self.gpio.state.ring_pwm_pct,
             }
+            validate_event(event)
             inserted = self.store.append_inspection_pair(result, event)
             return event, inserted
         except Exception:

@@ -1,4 +1,4 @@
-import { mkdirSync } from 'node:fs';
+import { mkdirSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { expect, test, type Page, type WebSocketRoute } from '@playwright/test';
 import { LocalServers } from './servers';
@@ -245,3 +245,25 @@ test('replay controls are reachable and usable from the keyboard', async ({ page
   await page.keyboard.press('Enter');
   await expect(page.getByRole('status').getByText('RECHECK', { exact: true })).toBeVisible();
 });
+
+if (process.env.FORGESIGHT_TEST_ONNX === '1') {
+  test('real ONNX graph event reaches the rendered HMI with test-only provenance', async ({ page }) => {
+    await page.goto('/');
+    await expect(page.getByText('Connected to local backend')).toBeVisible();
+    const image = readFileSync(resolve(import.meta.dirname, '../../../software/fixtures/images/clean.png'));
+    const response = await page.request.post('/api/v1/inspections/image?profile_id=metal-plate-v1&version=9.0.0', {
+      data: image, headers: { 'content-type': 'image/png' },
+    });
+    expect(response.status()).toBe(200);
+    const { event } = await response.json() as { event: { event_id: string; result: string; model: { purpose: string } } };
+    expect(event.result).toBe('RECHECK');
+    expect(event.model.purpose).toBe('adapter_test_fixture');
+    await expect(page.getByRole('status')).toContainText('RECHECK');
+    await expect(page.getByText(/ONNX adapter test fixture/i).first()).toBeVisible();
+    await expect(page.getByText(/No stored preview for local image/i)).toBeVisible();
+    await page.getByRole('button', { name: `View inspection ${event.event_id}` }).click();
+    await expect(page.getByRole('heading', { name: 'Inspection detail' }).locator('..')).toContainText('test-only ONNX graph');
+    await page.reload();
+    await expect(page.getByRole('button', { name: `View inspection ${event.event_id}` })).toBeVisible();
+  });
+}

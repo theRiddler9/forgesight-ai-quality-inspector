@@ -1,4 +1,4 @@
-"""Artifact identity verification; deliberately does not enable inference."""
+"""Artifact identity verification; approval is separate from adapter execution."""
 from __future__ import annotations
 
 import hashlib
@@ -80,4 +80,4 @@ def verify_model_artifact(profile: ComponentProfile, manifest: ModelManifest, mo
         raise ModelArtifactError("model artifact hash mismatch")
     runtime_module = "onnxruntime" if manifest.backend == "onnx" else "rknn"
     return {"artifact_hash_verified": True, "runtime_available": importlib.util.find_spec(runtime_module) is not None,
-            "inference_ready": False, "reason": "runtime adapter and defect-model validation not implemented"}
+            "inference_ready": False, "reason": "artifact identity alone does not establish model validation or operational approval"}

@@ -166,6 +166,6 @@ export default function App() {
         </Section>
       </div>
     </div>
-    <footer className="mt-7 border-t border-slate-800 pt-4 text-xs text-slate-500">Stage 2 virtual validation only. No trained burr model, physical camera, GPIO, isolation verification, or Orange Pi benchmark is connected.</footer>
+    <footer className="mt-7 border-t border-slate-800 pt-4 text-xs text-slate-500">Stage 2 virtual validation only. Recorded replay uses synthetic fixtures and simulated burr decisions. ONNX events identify their model provenance. No physical camera, GPIO, isolation verification, or Orange Pi benchmark is connected.</footer>
   </main>;
 }

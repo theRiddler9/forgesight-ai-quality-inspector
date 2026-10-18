@@ -1,4 +1,4 @@
-import { spawn, type ChildProcess } from 'node:child_process';
+import { execFileSync, spawn, type ChildProcess } from 'node:child_process';
 import { existsSync, mkdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 
@@ -16,6 +16,10 @@ export class LocalServers {
 
   async start(): Promise<void> {
     mkdirSync(this.runDir, { recursive: true });
+    if (process.env.FORGESIGHT_TEST_ONNX === '1') {
+      execFileSync(python, ['-m', 'software.ml.fixture_model', resolve(this.runDir, 'onnx'), '--bundle'],
+        { cwd: repoRoot, windowsHide: true });
+    }
     await this.startBackend();
     this.preview = this.launch(process.execPath, [
       resolve(frontendRoot, 'node_modules/vite/bin/vite.js'),
@@ -29,6 +33,11 @@ export class LocalServers {
       FORGESIGHT_DB_PATH: this.dbPath,
       FORGESIGHT_API_HOST: '127.0.0.1',
       FORGESIGHT_API_PORT: '8000',
+      ...(process.env.FORGESIGHT_TEST_ONNX === '1' ? {
+        FORGESIGHT_PROFILE_CATALOG: resolve(this.runDir, 'onnx/catalog'),
+        FORGESIGHT_MODEL_MANIFEST: resolve(this.runDir, 'onnx/model-manifest.json'),
+        FORGESIGHT_MODEL_ROOT: resolve(this.runDir, 'onnx/models'),
+      } : {}),
     });
     await this.waitFor('http://127.0.0.1:8000/health', this.backend);
   }

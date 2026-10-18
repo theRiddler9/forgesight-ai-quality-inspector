@@ -5,6 +5,9 @@ from pathlib import Path
 import numpy as np
 import pytest
 
+pytest.importorskip("onnx")
+pytest.importorskip("onnxruntime")
+
 from software.inspection.detectors import DetectorUnavailable
 from software.ml.model_manifest import ModelManifest
 from software.profiles.models import ComponentProfile
@@ -79,6 +82,17 @@ def test_actual_runtime_low_score_is_not_actionable(tmp_path):
     from software.inspection.onnx_detector import OnnxDetector
     profile, manifest, root = fixture_configuration(tmp_path, confidence=0.4)
     assert OnnxDetector(profile, manifest, root).detect(np.zeros((800, 1280, 3), dtype=np.uint8)).detections == ()
+
+
+def test_actual_runtime_uncertainty_and_class_aware_nms(tmp_path):
+    from software.inspection.onnx_detector import OnnxDetector
+    profile, manifest, root = fixture_configuration(tmp_path, boxes=[
+        (32, 32, 20, 10, 0.6), (32, 32, 20, 10, 0.55),
+    ])
+    output = OnnxDetector(profile, manifest, root).detect(np.zeros((800, 1280, 3), dtype=np.uint8))
+    assert len(output.detections) == 1
+    assert output.detections[0].confidence == pytest.approx(0.6)
+    assert output.uncertain
 
 
 def test_unsupported_actual_output_is_rejected(tmp_path):

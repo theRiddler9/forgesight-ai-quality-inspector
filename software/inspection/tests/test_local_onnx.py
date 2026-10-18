@@ -2,6 +2,9 @@ from pathlib import Path
 
 import pytest
 
+pytest.importorskip("onnx")
+pytest.importorskip("onnxruntime")
+
 from software.backend.database import AuditStore
 from software.inspection.events import validate_event
 from software.inspection.service import ReplayService
@@ -53,6 +56,7 @@ def test_local_onnx_faults_cannot_pass(tmp_path, fault):
     event, _ = service.inspect_image_bytes(raw, profile, manifest, model_root, "input.png")
     assert event["result"] == "RECHECK"
     assert event["faults"]
+    assert event["image"]["sha256"]
     assert not service.gpio.state.green
     assert service.store.canonical_inspection(event["event_id"]) == event
 

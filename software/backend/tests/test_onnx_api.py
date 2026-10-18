@@ -1,4 +1,8 @@
 from pathlib import Path
+import pytest
+
+pytest.importorskip("onnx")
+pytest.importorskip("onnxruntime")
 
 from fastapi.testclient import TestClient
 

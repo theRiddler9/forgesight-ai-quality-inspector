@@ -9,7 +9,7 @@ import numpy as np
 from software.common.schemas import DetectionBox
 from software.inspection.detectors import DetectorOutput, DetectorUnavailable
 from software.ml.model_manifest import ModelManifest, verify_model_artifact
-from software.ml.preprocessing import PreprocessError, preprocess_image
+from software.ml.preprocessing import preprocess_image
 from software.profiles.models import ComponentProfile
 
 

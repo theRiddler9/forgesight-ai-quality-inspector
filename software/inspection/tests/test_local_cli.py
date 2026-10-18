@@ -1,5 +1,9 @@
 import json
 from pathlib import Path
+import pytest
+
+pytest.importorskip("onnx")
+pytest.importorskip("onnxruntime")
 
 from software.ml.tests.test_onnx_adapter import fixture_configuration
 
