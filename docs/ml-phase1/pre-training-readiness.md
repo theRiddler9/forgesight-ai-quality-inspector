@@ -12,12 +12,12 @@
 | Deterministic decode, ROI, orientation, letterbox, box transforms | Implemented and tested | `software/ml/preprocessing.py`; calibrate against the selected camera and component before deployment. |
 | Training preflight and explicit optional runner | Implemented, preflight tested | `software/ml/training/`; optional Ultralytics runner and actual training remain unexecuted. Team must approve its AGPL terms and training configuration. |
 | Evaluation arithmetic and validation-only threshold sweep | Implemented and tested on synthetic records | `software/ml/evaluation.py`; actual performance is unknown until reviewed real predictions exist. |
-| Model manifest/hash/compatibility checks | Implemented and tested | `software/ml/model_manifest.py`; ONNX/RKNN inference is intentionally unavailable. |
+| Model manifest/hash/compatibility checks | Implemented and tested | `software/ml/model_manifest.py`; the optional local ONNX adapter now executes a deterministic test graph. RKNN remains unavailable. |
 | Real heavy-burr training/evaluation dataset | **External blocker** | No verified plate heavy-burr dataset; see [candidate review](dataset-candidates.md). |
 | Approved component, physical reject criteria, licensing, held-out review | **Team decisions** | Obtain the physical part, edge examples, tolerances, usage rights, capture plan, and independent label review. |
 | Real model training, ONNX parity, RKNN/Orange Pi latency and electrical integration | **Later phases** | Requires approved data/model or hardware. The simulator does not verify these. |
 
-The existing replay contract and six scenarios remain the regression baseline. A future model can use the detector boundary without changing the shared decision or audit event structure, but it **cannot be activated** by a manifest alone: runtime adapter implementation and model validation are still required. Missing, incompatible, or unavailable models remain non-PASS.
+The existing replay contract and six scenarios remain the regression baseline. A future model can use the local ONNX detector boundary without changing shared decision or audit storage, but it **cannot be activated** by a manifest alone: the exported graph must satisfy the documented tensor contract and receive independent validation and approval. Missing, incompatible, or unavailable models remain non-PASS. See [ONNX integration](onnx-integration.md).
 
 ## Windows setup and commands
 
@@ -40,6 +40,6 @@ Import creates a manifest with provisional review status. Add canonical JSON ann
 
 ## Model adoption boundary
 
-Create a new immutable profile version for the selected physical component, camera geometry, calibration, preprocessing, classes, thresholds, and model metadata. Record the model artifact and SHA-256 in a model manifest; `verify_model_artifact` checks profile and artifact identity. Change model versions by adding a new profile/model manifest pair and validating it, never by replacing a historical artifact in place. Implement and test the real runtime adapter, output mapping, decision behavior, ONNX/RKNN parity where applicable, and physical safety before enabling real inspections. Audit events retain the profile/configuration identity used at inspection time.
+Create a new immutable profile version for the selected physical component, camera geometry, calibration, preprocessing, classes, thresholds, and model metadata. Record the model artifact and SHA-256 in a model manifest; `verify_model_artifact` checks profile and artifact identity. Change model versions by adding a new profile/model manifest pair and validating it, never by replacing a historical artifact in place. Validate the trained graph against the supported ONNX output mapping and decision behavior, then measure ONNX/RKNN parity where applicable and physical safety before deployment. Audit events retain the profile/configuration identity used at inspection time.
 
 See [component profiles](component-profiles.md), [dataset and annotation rules](dataset-and-annotations.md), and the [evaluation protocol](evaluation-protocol.md). The UI and recorded-image demo continue to label synthetic images, simulated burr decisions, and mock I/O explicitly.
