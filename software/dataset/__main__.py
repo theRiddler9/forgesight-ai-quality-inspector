@@ -7,17 +7,32 @@ from pathlib import Path
 
 from software.dataset.audit import audit_dataset, split_manifest, validate_images
 from software.dataset.manifest import DatasetManifest
+from software.dataset.intake import import_dataset
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="ForgeSight dataset manifest tools")
-    parser.add_argument("action", choices=["validate", "report", "split"])
+    parser.add_argument("action", choices=["validate", "report", "split", "import"])
     parser.add_argument("manifest", type=Path)
     parser.add_argument("--root", type=Path, help="dataset root; defaults to manifest directory")
     parser.add_argument("--group-by", choices=["physical_part_id", "capture_session", "batch_id", "source"])
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--output", type=Path, help="new output manifest for split")
+    parser.add_argument("--dataset-version")
+    parser.add_argument("--profile")
+    parser.add_argument("--source-name")
+    parser.add_argument("--source-license")
+    parser.add_argument("--capture-session")
+    parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args()
+    if args.action == "import":
+        required = (args.output, args.dataset_version, args.profile, args.source_name, args.source_license)
+        if not all(required):
+            parser.error("import requires --output, --dataset-version, --profile, --source-name and --source-license")
+        report = import_dataset(args.manifest, args.output, args.dataset_version, args.profile,
+                                args.source_name, args.source_license, args.capture_session, args.dry_run)
+        print(json.dumps(report, indent=2))
+        return 0
     manifest = DatasetManifest.model_validate_json(args.manifest.read_text(encoding="utf-8"))
     root = args.root or args.manifest.parent
     if args.action == "validate":
