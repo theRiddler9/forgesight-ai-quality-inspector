@@ -68,6 +68,21 @@ def validate_images(manifest: DatasetManifest, root: str | Path) -> list[str]:
     return errors
 
 
+def decoded_cross_split_duplicates(manifest: DatasetManifest, root: str | Path) -> list[list[str]]:
+    """Detect byte-different files that decode to identical pixels."""
+    root = Path(root).resolve()
+    by_pixels: dict[str, list[ImageRecord]] = defaultdict(list)
+    for item in manifest.entries:
+        raw = _inside(root, item.image_path).read_bytes()
+        image = cv2.imdecode(np.frombuffer(raw, dtype=np.uint8), cv2.IMREAD_UNCHANGED)
+        if image is None:
+            raise ValueError(f"cannot decode image {item.image_id}")
+        digest = hashlib.sha256(str(image.shape).encode() + image.tobytes()).hexdigest()
+        by_pixels[digest].append(item)
+    return [sorted(item.image_id for item in group) for group in by_pixels.values()
+            if len(group) > 1 and len({item.split for item in group}) > 1]
+
+
 def split_manifest(
     manifest: DatasetManifest,
     group_by: GroupBy,
@@ -152,7 +167,9 @@ def audit_dataset(manifest: DatasetManifest, group_by: GroupBy | None = None) ->
     cross_sessions = sorted(key for key, splits in session_splits.items() if len(splits) > 1)
     unreviewed_eval = sorted(item.image_id for item in manifest.entries if item.split in {"validation", "test"} and item.review_status != "reviewed")
     unassigned = sorted(item.image_id for item in manifest.entries if item.split is None)
-    split_failures = bool(cross_duplicates or cross_groups or cross_parts or cross_sessions or unreviewed_eval or missing or unassigned or manifest.split_policy is None)
+    missing_parts = sorted(item.image_id for item in manifest.entries if not item.physical_part_id)
+    missing_sessions = sorted(item.image_id for item in manifest.entries if not item.capture_session)
+    split_failures = bool(cross_duplicates or cross_groups or cross_parts or cross_sessions or unreviewed_eval or missing or unassigned or missing_parts or missing_sessions or manifest.split_policy is None)
     return {
         "dataset_version": manifest.dataset_version,
         "image_count": len(manifest.entries),
@@ -175,6 +192,8 @@ def audit_dataset(manifest: DatasetManifest, group_by: GroupBy | None = None) ->
             "unreviewed_evaluation_images": unreviewed_eval,
             "unassigned_images": unassigned,
             "missing_selected_group_ids": sorted(missing),
+            "missing_part_ids": missing_parts,
+            "missing_session_ids": missing_sessions,
             "missing_split_policy": manifest.split_policy is None,
             "policy": manifest.split_policy.model_dump() if manifest.split_policy else None,
         },

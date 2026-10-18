@@ -55,7 +55,7 @@ def verify_model_artifact(profile: ComponentProfile, manifest: ModelManifest, mo
             or manifest.artifact_path != detector.artifact_path
             or manifest.artifact_sha256 != detector.artifact_sha256):
         raise ModelArtifactError("model metadata differs from profile detector reference")
-    if set(manifest.class_map) != set(detector.defect_classes):
+    if [name for name, _ in sorted(manifest.class_map.items(), key=lambda pair: pair[1])] != detector.defect_classes:
         raise ModelArtifactError("model classes differ from profile")
     if (manifest.input_width != (profile.preprocessing.model_width or profile.image.width)
             or manifest.input_height != (profile.preprocessing.model_height or profile.image.height)
