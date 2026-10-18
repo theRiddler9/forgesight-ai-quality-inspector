@@ -18,6 +18,8 @@ def main() -> int:
     parser.add_argument("--root", type=Path, help="dataset root; defaults to manifest directory")
     parser.add_argument("--group-by", choices=["physical_part_id", "capture_session", "batch_id", "source"])
     parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument("--fractions", nargs=3, type=float, metavar=("TRAIN", "VAL", "TEST"),
+                        default=(0.7, 0.15, 0.15), help="split proportions by connected identity group")
     parser.add_argument("--output", type=Path, help="new output manifest for split")
     parser.add_argument("--dataset-version")
     parser.add_argument("--profile")
@@ -55,7 +57,7 @@ def main() -> int:
     output = args.output.resolve()
     if output.exists() or output == args.manifest.resolve():
         parser.error("split output must be a new file; existing manifests are never overwritten")
-    split = split_manifest(manifest, args.group_by, args.seed)
+    split = split_manifest(manifest, args.group_by, args.seed, tuple(args.fractions))
     with output.open("x", encoding="utf-8") as stream:
         stream.write(split.model_dump_json(indent=2) + "\n")
     print(json.dumps(audit_dataset(split, args.group_by), indent=2))

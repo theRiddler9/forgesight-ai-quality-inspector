@@ -2,6 +2,9 @@
 from __future__ import annotations
 
 import math
+import argparse
+import json
+from pathlib import Path
 import statistics
 from collections import Counter, defaultdict
 
@@ -52,7 +55,8 @@ def per_class_metrics(samples: list[dict]) -> dict[str, dict]:
     return {label: classification_metrics(samples, label) for label in sorted({item["truth"] for item in samples if item["truth"] != "clean"})}
 
 
-def threshold_sweep(observations: list[dict], thresholds: list[float], split: str) -> list[dict]:
+def threshold_sweep(observations: list[dict], thresholds: list[float], split: str,
+                    positive_class: str = "heavy_burr") -> list[dict]:
     if split != "validation":
         raise ValueError("threshold selection may use validation data only")
     if any(not 0 <= threshold <= 1 for threshold in thresholds):
@@ -61,8 +65,8 @@ def threshold_sweep(observations: list[dict], thresholds: list[float], split: st
         raise ValueError("confidence must be between zero and one")
     return [{"threshold": threshold, **classification_metrics([
         {"truth": item["truth"], "decision": "FAIL" if item["confidence"] >= threshold else "PASS",
-         "predicted_class": "heavy_burr" if item["confidence"] >= threshold else None}
-        for item in observations])} for threshold in thresholds]
+         "predicted_class": positive_class if item["confidence"] >= threshold else None}
+        for item in observations], positive_class)} for threshold in thresholds]
 
 
 def box_iou(left: tuple[float, float, float, float], right: tuple[float, float, float, float]) -> float:
@@ -108,3 +112,29 @@ def latency_summary(values_ms: list[float]) -> dict:
     high = math.ceil(location)
     p95 = values[low] + (values[high] - values[low]) * (location - low)
     return {"count": len(values), "median_ms": statistics.median(values), "p95_ms": p95, "max_ms": values[-1]}
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description="Compute metrics from reviewed prediction records; never runs a model")
+    parser.add_argument("predictions", type=Path, help="JSON list of truth, decision, predicted_class, and optional latency_ms")
+    parser.add_argument("--positive-class", default="heavy_burr")
+    parser.add_argument("--split", choices=["validation", "test"], required=True)
+    parser.add_argument("--thresholds", nargs="*", type=float, help="confidence sweep, validation split only")
+    args = parser.parse_args()
+    records = json.loads(args.predictions.read_text(encoding="utf-8"))
+    if not isinstance(records, list):
+        parser.error("predictions must be a JSON list")
+    if any(item.get("split") != args.split or item.get("review_status") != "reviewed" for item in records):
+        parser.error("every prediction must be reviewed and belong to the selected split")
+    result = {"split": args.split,
+              "metrics": classification_metrics(records, args.positive_class),
+              "per_class": per_class_metrics(records),
+              "latency": latency_summary([item["latency_ms"] for item in records if "latency_ms" in item])}
+    if args.thresholds is not None:
+        result["threshold_sweep"] = threshold_sweep(records, args.thresholds, args.split, args.positive_class)
+    print(json.dumps(result, indent=2))
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

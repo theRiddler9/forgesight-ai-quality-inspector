@@ -54,6 +54,12 @@ class SplitPolicy(StrictModel):
     fractions: tuple[float, float, float]
     input_sha256: str = Field(pattern=r"^[a-f0-9]{64}$")
 
+    @model_validator(mode="after")
+    def valid_fractions(self):
+        if any(not 0 < value < 1 for value in self.fractions) or abs(sum(self.fractions) - 1) > 1e-9:
+            raise ValueError("split fractions must be positive and sum to one")
+        return self
+
 
 class DatasetManifest(StrictModel):
     dataset_version: str = Field(pattern=r"^[0-9]+\.[0-9]+\.[0-9]+$")

@@ -1,6 +1,7 @@
 import pytest
+import json
 
-from software.ml.evaluation import classification_metrics, threshold_sweep, latency_summary, box_iou, defect_metrics
+from software.ml.evaluation import classification_metrics, threshold_sweep, latency_summary, box_iou, defect_metrics, main
 
 
 def test_decision_metrics_and_empty_class_are_explicit():
@@ -27,6 +28,8 @@ def test_threshold_sweep_rejects_test_data():
     with pytest.raises(ValueError, match="validation"):
         threshold_sweep(observations, [0.6], split="test")
     assert threshold_sweep(observations, [0.6], split="validation")[0]["recall"] == 1
+    assert threshold_sweep([{"truth": "burr", "confidence": 0.7}], [0.6],
+                           split="validation", positive_class="burr")[0]["recall"] == 1
 
 
 def test_defect_iou_and_latency_summary():
@@ -37,3 +40,25 @@ def test_defect_iou_and_latency_summary():
     assert result["recall"] == 1 and result["precision"] == 1
     assert latency_summary([10, 20, 30])["p95_ms"] == pytest.approx(29)
     assert latency_summary([])["median_ms"] is None
+
+
+def test_evaluation_cli_reports_synthetic_records(tmp_path, monkeypatch, capsys):
+    path = tmp_path / "synthetic-predictions.json"
+    path.write_text(json.dumps([
+        {"truth": "heavy_burr", "decision": "FAIL", "predicted_class": "heavy_burr", "latency_ms": 5, "split": "test", "review_status": "reviewed"},
+        {"truth": "clean", "decision": "PASS", "predicted_class": None, "latency_ms": 7, "split": "test", "review_status": "reviewed"},
+    ]), encoding="utf-8")
+    monkeypatch.setattr("sys.argv", ["evaluation", str(path), "--split", "test"])
+    assert main() == 0
+    report = json.loads(capsys.readouterr().out)
+    assert report["metrics"]["recall"] == 1
+    assert report["latency"]["median_ms"] == 6
+
+
+def test_evaluation_cli_rejects_unreviewed_or_wrong_split(tmp_path, monkeypatch):
+    path = tmp_path / "synthetic-predictions.json"
+    path.write_text(json.dumps([{"truth": "clean", "decision": "PASS", "split": "validation",
+                                 "review_status": "unreviewed"}]), encoding="utf-8")
+    monkeypatch.setattr("sys.argv", ["evaluation", str(path), "--split", "test"])
+    with pytest.raises(SystemExit):
+        main()

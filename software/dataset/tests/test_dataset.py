@@ -41,6 +41,14 @@ def test_manifest_validates_paths_labels_and_versions():
         DatasetManifest.model_validate(data)
 
 
+def test_split_policy_rejects_forged_fractions():
+    data = sample_manifest()
+    data["split_policy"] = {"group_by": "physical_part_id", "seed": 42,
+                            "fractions": [0.8, 0.3, 0.1], "input_sha256": "a" * 64}
+    with pytest.raises(ValidationError, match="split fractions"):
+        DatasetManifest.model_validate(data)
+
+
 def test_grouped_split_is_deterministic_and_keeps_parts_together():
     manifest = DatasetManifest.model_validate(sample_manifest())
     first = split_manifest(manifest, group_by="physical_part_id", seed=17)

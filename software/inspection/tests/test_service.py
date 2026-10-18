@@ -182,3 +182,22 @@ def test_changed_replay_preprocessing_cannot_silently_pass(tmp_path):
     event, _ = service.inspect("clean_part")
     assert event["result"] == "RECHECK"
     assert event["faults"] == ["UNSUPPORTED_PROFILE"]
+
+
+@pytest.mark.parametrize("mode", ["timeout", "missing_output"])
+def test_detector_fault_or_missing_output_never_passes(tmp_path, monkeypatch, mode):
+    service = ReplayService(AuditStore(tmp_path / "audit.sqlite3"), FIXTURES)
+
+    class BrokenDetector:
+        def infer(self, frame):
+            if mode == "timeout":
+                raise TimeoutError("simulated detector timeout")
+            return None
+
+    monkeypatch.setattr("software.inspection.service.detector_for", lambda profile, scenario: BrokenDetector())
+    event, inserted = service.inspect("clean_part")
+    assert inserted
+    assert event["result"] == "RECHECK"
+    assert event["faults"] == ["PIPELINE_ERROR"]
+    assert not service.gpio.state.green
+    assert service.store.canonical_inspection(event["event_id"]) == event
