@@ -65,6 +65,8 @@ class ReplayService:
                 try:
                     if profile.geometry.adapter != "rectangular_plate_v1":
                         raise ReplayError("UNSUPPORTED_PROFILE", "component geometry adapter is unavailable")
+                    if profile.detector.backend == "scenario_simulation" and not profile.replay_suitable:
+                        raise ReplayError("UNSUPPORTED_PROFILE", "replay cannot enforce profile preprocessing")
                     pipeline = InspectionPipeline(
                         source, detector_for(profile, scenario), self.gpio, Watchdog(),
                         lambda: -1.0, sinks=[sink], config=profile.edge_config(),

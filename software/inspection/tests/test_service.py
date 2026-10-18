@@ -166,3 +166,19 @@ def test_profile_image_mismatch_fails_closed(tmp_path):
     assert event["result"] == "RECHECK"
     assert event["faults"] == ["FRAME_FORMAT_MISMATCH"]
     assert not service.gpio.state.green
+
+
+def test_changed_replay_preprocessing_cannot_silently_pass(tmp_path):
+    catalog = Path(__file__).resolve().parents[2] / "profiles" / "catalog"
+    registry = ProfileRegistry(catalog)
+    changed = registry.active.model_copy(update={
+        "version": "5.0.0",
+        "preprocessing": registry.active.preprocessing.model_copy(update={"rotation_deg": 90}),
+        "detector": registry.active.detector.model_copy(update={"compatible_profiles": ["metal-plate-v1@5.0.0"]}),
+    })
+    registry._profiles[(changed.profile_id, changed.version)] = changed
+    registry.select("metal-plate-v1", "5.0.0")
+    service = ReplayService(AuditStore(tmp_path / "audit.sqlite3"), FIXTURES, registry)
+    event, _ = service.inspect("clean_part")
+    assert event["result"] == "RECHECK"
+    assert event["faults"] == ["UNSUPPORTED_PROFILE"]

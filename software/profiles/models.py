@@ -109,6 +109,16 @@ class GeometrySpec(StrictModel):
 
 class PreprocessingSpec(StrictModel):
     contrast_clip_limit: float = Field(gt=0)
+    rotation_deg: Literal[0, 90, 180, 270] = 0
+    model_width: int | None = Field(default=None, ge=32)
+    model_height: int | None = Field(default=None, ge=32)
+    normalization: Literal["zero_one", "none"] = "zero_one"
+
+    @model_validator(mode="after")
+    def paired_model_size(self):
+        if (self.model_width is None) != (self.model_height is None):
+            raise ValueError("model width and height must be supplied together")
+        return self
 
 
 class DetectorSpec(StrictModel):
@@ -181,12 +191,19 @@ class ComponentProfile(StrictModel):
 
     @property
     def fingerprint(self) -> str:
-        canonical = json.dumps(self.model_dump(mode="json"), sort_keys=True, separators=(",", ":"))
+        # Exclude newly introduced defaults so existing profile fingerprints
+        # keep their historical meaning until those settings are explicit.
+        canonical = json.dumps(self.model_dump(mode="json", exclude_unset=True), sort_keys=True, separators=(",", ":"))
         return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
     @property
     def replay_suitable(self) -> bool:
-        return self.geometry.adapter == "rectangular_plate_v1" and self.detector.backend == "scenario_simulation"
+        return (self.geometry.adapter == "rectangular_plate_v1"
+                and self.detector.backend == "scenario_simulation"
+                and self.preprocessing.rotation_deg == 0
+                and self.preprocessing.model_width is None
+                and self.preprocessing.model_height is None
+                and self.preprocessing.normalization == "zero_one")
 
     @property
     def real_inspection_ready(self) -> bool:
