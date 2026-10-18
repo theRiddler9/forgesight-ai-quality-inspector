@@ -19,7 +19,7 @@ class StrictModel(BaseModel):
 
 
 class ImageRecord(StrictModel):
-    image_id: str = Field(min_length=1)
+    image_id: str = Field(pattern=r"^[A-Za-z0-9][A-Za-z0-9_-]*$")
     source: str = Field(min_length=1)
     source_license: str = Field(min_length=1)
     component_profile: str = Field(pattern=r"^[a-z][a-z0-9-]*@[0-9]+\.[0-9]+\.[0-9]+$")
@@ -48,9 +48,17 @@ class ImageRecord(StrictModel):
         return self
 
 
+class SplitPolicy(StrictModel):
+    group_by: Literal["physical_part_id", "capture_session", "batch_id", "source"]
+    seed: int
+    fractions: tuple[float, float, float]
+    input_sha256: str = Field(pattern=r"^[a-f0-9]{64}$")
+
+
 class DatasetManifest(StrictModel):
     dataset_version: str = Field(pattern=r"^[0-9]+\.[0-9]+\.[0-9]+$")
     entries: list[ImageRecord] = Field(min_length=1)
+    split_policy: SplitPolicy | None = None
 
     @model_validator(mode="after")
     def unique_ids(self):

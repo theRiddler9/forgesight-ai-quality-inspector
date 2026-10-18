@@ -8,11 +8,12 @@ from pathlib import Path
 from software.dataset.audit import audit_dataset, split_manifest, validate_images
 from software.dataset.manifest import DatasetManifest
 from software.dataset.intake import import_dataset
+from software.dataset.annotations import export_yolo
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="ForgeSight dataset manifest tools")
-    parser.add_argument("action", choices=["validate", "report", "split", "import"])
+    parser.add_argument("action", choices=["validate", "report", "split", "import", "export-yolo"])
     parser.add_argument("manifest", type=Path)
     parser.add_argument("--root", type=Path, help="dataset root; defaults to manifest directory")
     parser.add_argument("--group-by", choices=["physical_part_id", "capture_session", "batch_id", "source"])
@@ -24,6 +25,7 @@ def main() -> int:
     parser.add_argument("--source-license")
     parser.add_argument("--capture-session")
     parser.add_argument("--dry-run", action="store_true")
+    parser.add_argument("--class-map", type=Path, help="JSON mapping from approved label to zero-based class ID")
     args = parser.parse_args()
     if args.action == "import":
         required = (args.output, args.dataset_version, args.profile, args.source_name, args.source_license)
@@ -41,6 +43,12 @@ def main() -> int:
         return 1 if errors else 0
     if args.action == "report":
         print(json.dumps(audit_dataset(manifest, args.group_by), indent=2))
+        return 0
+    if args.action == "export-yolo":
+        if not args.output or not args.class_map:
+            parser.error("export-yolo requires --output and --class-map")
+        class_map = json.loads(args.class_map.read_text(encoding="utf-8"))
+        print(json.dumps(export_yolo(manifest, root, args.output, class_map, args.dry_run), indent=2))
         return 0
     if not args.group_by or not args.output:
         parser.error("split requires --group-by and --output")
