@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
 import sqlite3
 import time
 from contextlib import asynccontextmanager
@@ -25,6 +26,9 @@ from software.backend.websocket import WebSocketHub
 from software.common.schemas import InspectionDecision, InspectionResult
 from software.inspection.replay import ReplayError
 from software.inspection.service import ReplayService
+from software.inspection.local_image import MAX_IMAGE_BYTES
+from software.ml.model_manifest import ModelManifest
+from software.profiles.registry import ProfileRegistry, UnknownProfile
 
 _MIB = 1024 * 1024
 log = logging.getLogger(__name__)
@@ -83,12 +87,16 @@ async def _lifespan(app: FastAPI):
     settings: BackendSettings = app.state.settings
     app.state.audit_store = await asyncio.to_thread(AuditStore, settings.db_path)
     app.state.websocket_hub = WebSocketHub()
-    app.state.replay_service = ReplayService(app.state.audit_store, settings.fixture_dir)
+    registry = ProfileRegistry(app.state.profile_catalog) if app.state.profile_catalog else None
+    app.state.replay_service = ReplayService(app.state.audit_store, settings.fixture_dir, registry)
     app.state.started_at = time.monotonic()
     yield
 
 
-def create_app(db_path: str | Path | None = None, fixture_dir: str | Path | None = None) -> FastAPI:
+def create_app(db_path: str | Path | None = None, fixture_dir: str | Path | None = None,
+               *, profile_catalog: str | Path | None = None,
+               model_manifest_path: str | Path | None = None,
+               model_root: str | Path | None = None) -> FastAPI:
     settings = BackendSettings.from_environment()
     if db_path is not None or fixture_dir is not None:
         settings = BackendSettings(
@@ -98,6 +106,9 @@ def create_app(db_path: str | Path | None = None, fixture_dir: str | Path | None
         )
     app = FastAPI(title="ForgeSight Local Backend", lifespan=_lifespan)
     app.state.settings = settings
+    app.state.profile_catalog = profile_catalog or os.environ.get("FORGESIGHT_PROFILE_CATALOG")
+    app.state.model_manifest_path = model_manifest_path or os.environ.get("FORGESIGHT_MODEL_MANIFEST")
+    app.state.model_root = model_root or os.environ.get("FORGESIGHT_MODEL_ROOT")
     app.add_middleware(
         CORSMiddleware,
         allow_origins=sorted(_LOCAL_ORIGINS),
@@ -254,6 +265,40 @@ def create_app(db_path: str | Path | None = None, fixture_dir: str | Path | None
             except Exception:
                 # The committed record remains authoritative; REST history repairs missed live updates.
                 log.exception("inspection committed but live event publication failed: %s", event["event_id"])
+        return ReplayResponse(event=event, inserted=inserted)
+
+    @app.post("/api/v1/inspections/image", response_model=ReplayResponse)
+    async def inspect_uploaded_image(request: Request, profile_id: str = Query(min_length=1, max_length=80),
+                                     version: str = Query(pattern=r"^[0-9]+\.[0-9]+\.[0-9]+$")) -> ReplayResponse:
+        _require_local_client(request)
+        if request.headers.get("content-type", "").split(";", 1)[0] not in {"image/png", "image/jpeg", "image/bmp"}:
+            raise HTTPException(status_code=415, detail="PNG, JPEG, or BMP image required")
+        chunks, size = [], 0
+        async for chunk in request.stream():
+            size += len(chunk)
+            if size > MAX_IMAGE_BYTES:
+                raise HTTPException(status_code=413, detail="image exceeds 8 MiB limit")
+            chunks.append(chunk)
+        if not size:
+            raise HTTPException(status_code=422, detail="image is empty")
+        if not request.app.state.model_manifest_path or not request.app.state.model_root:
+            raise HTTPException(status_code=503, detail="local ONNX model is not configured")
+        try:
+            profile = request.app.state.replay_service.profiles.get(profile_id, version)
+        except UnknownProfile as exc:
+            raise HTTPException(status_code=404, detail="component profile unavailable") from exc
+        try:
+            manifest = ModelManifest.model_validate_json(Path(request.app.state.model_manifest_path).read_text(encoding="utf-8"))
+            event, inserted = await asyncio.to_thread(request.app.state.replay_service.inspect_image_bytes,
+                                                       b"".join(chunks), profile, manifest,
+                                                       request.app.state.model_root, "local-upload")
+        except (OSError, ValueError, sqlite3.Error, RuntimeError) as exc:
+            raise HTTPException(status_code=503, detail="local image inspection or audit unavailable") from exc
+        if inserted:
+            try:
+                request.app.state.websocket_hub.publish({"event": "inspection_event", "data": event})
+            except Exception:
+                log.exception("local inspection committed but publication failed: %s", event["event_id"])
         return ReplayResponse(event=event, inserted=inserted)
 
     @app.get("/api/v1/inspections")

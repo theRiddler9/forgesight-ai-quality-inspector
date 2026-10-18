@@ -89,9 +89,10 @@
       "additionalProperties": false,
       "required": ["synthetic_fixture", "scenario_driven_detector", "mock_io"],
       "properties": {
-        "synthetic_fixture": { "const": true },
+        "synthetic_fixture": { "type": "boolean" },
         "scenario_driven_detector": { "type": "boolean" },
-        "mock_io": { "const": true }
+        "mock_io": { "const": true },
+        "test_model": { "type": "boolean" }
       }
     },
     "scenario": { "type": "string", "minLength": 1 },
@@ -230,7 +231,8 @@
         "artifact_sha256": {
           "type": ["string", "null"],
           "pattern": "^[a-fA-F0-9]{64}$"
-        }
+        },
+        "purpose": { "enum": ["adapter_test_fixture", "trained_unverified", "trained_validated"] }
       }
     },
     "operatorReview": {

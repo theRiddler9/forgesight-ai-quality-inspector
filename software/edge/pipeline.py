@@ -89,7 +89,10 @@ class InspectionPipeline:
             detections, npu_ms = [], 0.0
             if report.status.all_ok:
                 t = time.perf_counter()
-                detections = self.engine.infer(enhanced)
+                # Local BGR sources provide their original color frame for a
+                # profile-driven detector; legacy grayscale adapters keep enhanced.
+                inference_frame = getattr(self.camera, "inference_frame", None)
+                detections = self.engine.infer(inference_frame if inference_frame is not None else enhanced)
                 npu_ms = _ms(t)
 
             # 4. decision + indicator outputs

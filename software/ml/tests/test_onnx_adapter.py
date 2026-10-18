@@ -11,13 +11,13 @@ from software.profiles.models import ComponentProfile
 from software.profiles.registry import ProfileRegistry
 
 
-def fixture_configuration(tmp_path):
+def fixture_configuration(tmp_path, **fixture_kwargs):
     from software.ml.fixture_model import write_fixture_model
 
     model_root = tmp_path / "models"
     model_root.mkdir()
     artifact = model_root / "adapter-test.onnx"
-    write_fixture_model(artifact)
+    write_fixture_model(artifact, **fixture_kwargs)
     digest = hashlib.sha256(artifact.read_bytes()).hexdigest()
     original = ProfileRegistry(Path(__file__).resolve().parents[2] / "profiles" / "catalog").active
     data = original.model_dump(mode="json")
@@ -72,4 +72,38 @@ def test_invalid_model_cannot_initialize(tmp_path, change):
         profile = profile.model_copy(update={"detector": profile.detector.model_copy(update={"artifact_sha256": manifest.artifact_sha256})})
         manifest = manifest.model_copy(update={"profile_fingerprint": profile.fingerprint})
     with pytest.raises(DetectorUnavailable):
+        OnnxDetector(profile, manifest, root)
+
+
+def test_actual_runtime_low_score_is_not_actionable(tmp_path):
+    from software.inspection.onnx_detector import OnnxDetector
+    profile, manifest, root = fixture_configuration(tmp_path, confidence=0.4)
+    assert OnnxDetector(profile, manifest, root).detect(np.zeros((800, 1280, 3), dtype=np.uint8)).detections == ()
+
+
+def test_unsupported_actual_output_is_rejected(tmp_path):
+    from software.inspection.onnx_detector import OnnxDetector
+    profile, manifest, root = fixture_configuration(tmp_path, output_channels=6)
+    detector = OnnxDetector(profile, manifest, root)
+    with pytest.raises(DetectorUnavailable, match="shape"):
+        detector.detect(np.zeros((800, 1280, 3), dtype=np.uint8))
+
+
+def test_runtime_failure_is_wrapped_as_unavailable(tmp_path, monkeypatch):
+    from software.inspection.onnx_detector import OnnxDetector
+    profile, manifest, root = fixture_configuration(tmp_path)
+    detector = OnnxDetector(profile, manifest, root)
+    monkeypatch.setattr(detector.session, "run", lambda *_: (_ for _ in ()).throw(RuntimeError("runtime failed")))
+    with pytest.raises(DetectorUnavailable, match="runtime failed"):
+        detector.detect(np.zeros((800, 1280, 3), dtype=np.uint8))
+
+
+def test_missing_runtime_and_wrong_graph_input_fail_safely(tmp_path, monkeypatch):
+    from software.inspection.onnx_detector import OnnxDetector
+    import sys
+    profile, manifest, root = fixture_configuration(tmp_path, input_height=32)
+    with pytest.raises(DetectorUnavailable, match="input shape"):
+        OnnxDetector(profile, manifest, root)
+    monkeypatch.setitem(sys.modules, "onnxruntime", None)
+    with pytest.raises(DetectorUnavailable, match="unavailable"):
         OnnxDetector(profile, manifest, root)

@@ -5,24 +5,26 @@ import argparse
 from pathlib import Path
 
 
-def write_fixture_model(destination: str | Path, output_format: str = "yolo11_raw_v1") -> None:
+def write_fixture_model(destination: str | Path, *, confidence: float = 0.9,
+                        output_channels: int = 5, input_height: int = 64) -> None:
     import numpy as np
     import onnx
     from onnx import TensorProto, helper, numpy_helper
 
-    if output_format != "yolo11_raw_v1":
-        raise ValueError("unsupported adapter fixture format")
+    if not 0 <= confidence <= 1 or output_channels < 5 or input_height < 32:
+        raise ValueError("invalid adapter fixture parameters")
     destination = Path(destination)
     if destination.exists():
         raise FileExistsError(destination)
     # One xywh detection at 0.9 confidence in a 64x64 letterboxed image.
-    prediction = np.array([[[32.0], [32.0], [20.0], [10.0], [0.9]]], dtype=np.float32)
+    prediction = np.array([32.0, 32.0, 20.0, 10.0, confidence]
+                          + [0.0] * (output_channels - 5), dtype=np.float32).reshape(1, output_channels, 1)
     graph = helper.make_graph([
         helper.make_node("ReduceMean", ["images"], ["mean"], axes=[0, 1, 2, 3], keepdims=0),
         helper.make_node("Mul", ["mean", "zero"], ["ignored_input"]),
         helper.make_node("Add", ["ignored_input", "constant_prediction"], ["predictions"]),
-    ], "forgesight-adapter-test-only", [helper.make_tensor_value_info("images", TensorProto.FLOAT, [1, 3, 64, 64])],
-       [helper.make_tensor_value_info("predictions", TensorProto.FLOAT, [1, 5, 1])],
+    ], "forgesight-adapter-test-only", [helper.make_tensor_value_info("images", TensorProto.FLOAT, [1, 3, input_height, 64])],
+       [helper.make_tensor_value_info("predictions", TensorProto.FLOAT, [1, output_channels, 1])],
        [numpy_helper.from_array(np.array(0, dtype=np.float32), name="zero"),
         numpy_helper.from_array(prediction, name="constant_prediction")])
     model = helper.make_model(graph, opset_imports=[helper.make_operatorsetid("", 13)],
