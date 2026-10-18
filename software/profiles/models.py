@@ -197,6 +197,14 @@ class ComponentProfile(StrictModel):
         return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
     @property
+    def preprocessing_fingerprint(self) -> str:
+        canonical = json.dumps({"image": self.image.model_dump(mode="json"),
+                                "roi": self.roi.model_dump(mode="json"),
+                                "preprocessing": self.preprocessing.model_dump(mode="json")},
+                               sort_keys=True, separators=(",", ":"))
+        return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+    @property
     def replay_suitable(self) -> bool:
         return (self.geometry.adapter == "rectangular_plate_v1"
                 and self.detector.backend == "scenario_simulation"
