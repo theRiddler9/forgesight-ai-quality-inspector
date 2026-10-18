@@ -32,6 +32,8 @@ class ModelManifest(BaseModel):
     class_map: dict[str, int] = Field(min_length=1)
     fail_confidence: float = Field(ge=0, le=1)
     recheck_confidence: float = Field(ge=0, le=1)
+    output_format: Literal["yolo11_raw_v1"]
+    model_purpose: Literal["adapter_test_fixture", "trained_unverified", "trained_validated"]
 
     @model_validator(mode="after")
     def internal_consistency(self):

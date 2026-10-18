@@ -24,7 +24,8 @@ def configured(tmp_path):
             "profile_fingerprint":profile.fingerprint, "artifact_path":"plate.onnx",
             "artifact_sha256":digest, "input_width":1280, "input_height":800,
             "pixel_format":"RGB_FLOAT32", "preprocessing_fingerprint":profile.preprocessing_fingerprint,
-            "class_map":{"burr":0}, "fail_confidence":0.8, "recheck_confidence":0.5}
+            "class_map":{"burr":0}, "fail_confidence":0.8, "recheck_confidence":0.5,
+            "output_format":"yolo11_raw_v1", "model_purpose":"trained_unverified"}
     return profile, root, data
 
 
