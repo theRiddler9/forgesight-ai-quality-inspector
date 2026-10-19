@@ -33,6 +33,8 @@ def summarize_report(path: str | Path) -> dict[str, Any]:
     if not isinstance(env, dict):
         raise ValueError(f"environment must be an object in {source}")
     artifact = report.get("artifact") or {}
+    if not isinstance(artifact, dict):
+        raise ValueError(f"artifact must be an object or null in {source}")
     return {
         "report": source.name,
         "created_at": report.get("created_at"),
