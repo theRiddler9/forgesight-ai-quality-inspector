@@ -203,14 +203,23 @@ def test_remote_client_cannot_mutate_with_trusted_host(tmp_path):
         assert client.get("/api/v1/inspections").json()["total"] == 0
 
 
-@pytest.mark.parametrize("failure", [ValueError("private path C:/secret"), ValidationError("private schema detail")])
-def test_internal_validation_failure_returns_stable_error_and_safe_outputs(tmp_path, monkeypatch, failure):
+@pytest.mark.parametrize("stage,failure", [
+    ("persistence", ValueError("private path C:/secret")),
+    ("event_validation", ValidationError("private schema detail")),
+])
+def test_internal_validation_failure_returns_stable_error_and_safe_outputs(tmp_path, monkeypatch, stage, failure):
     app = create_app(tmp_path / "audit.sqlite3", fixture_dir=FIXTURES)
     with TestClient(app, raise_server_exceptions=False) as client:
-        monkeypatch.setattr(
-            app.state.audit_store, "append_inspection_pair",
-            lambda *_: (_ for _ in ()).throw(failure),
-        )
+        if stage == "persistence":
+            monkeypatch.setattr(
+                app.state.audit_store, "append_inspection_pair",
+                lambda *_: (_ for _ in ()).throw(failure),
+            )
+        else:
+            monkeypatch.setattr(
+                "software.inspection.service.build_event",
+                lambda *_: (_ for _ in ()).throw(failure),
+            )
         response = client.post("/api/v1/inspections/replay", json={"scenario": "clean_part"})
         assert response.status_code == 503
         assert response.json() == {"detail": "inspection or audit unavailable"}
