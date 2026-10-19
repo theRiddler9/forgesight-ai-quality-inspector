@@ -91,7 +91,13 @@ def export_yolo(manifest: DatasetManifest, root: str | Path, destination: str | 
                              "label": label_target.relative_to(stage).as_posix()})
         (stage / "export-manifest.json").write_text(json.dumps({**report, "items": exported}, indent=2) + "\n", encoding="utf-8")
         names = [name for name, _ in sorted(class_map.items(), key=lambda pair: pair[1])]
-        (stage / "dataset.yaml").write_text("path: .\ntrain: images/train\nval: images/validation\ntest: images/test\nnames:\n" + "".join(f"  {i}: {name}\n" for i, name in enumerate(names)), encoding="utf-8")
+        # The staging directory is renamed below; YAML must reference the final location.
+        (stage / "dataset.yaml").write_text(
+            f"path: {json.dumps(destination.as_posix())}\n"
+            "train: images/train\nval: images/validation\ntest: images/test\nnames:\n"
+            + "".join(f"  {i}: {name}\n" for i, name in enumerate(names)),
+            encoding="utf-8",
+        )
         if destination.exists():
             raise AnnotationError("export destination already exists")
         stage.rename(destination)

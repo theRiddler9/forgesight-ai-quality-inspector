@@ -1,5 +1,6 @@
 import hashlib
 import json
+from pathlib import Path
 
 import cv2
 import numpy as np
@@ -41,6 +42,25 @@ def test_reviewed_export_preserves_original_and_converts_center(tmp_path):
     assert json.loads((out / "export-manifest.json").read_text())["class_map"] == {"heavy_burr": 0}
     with pytest.raises(AnnotationError, match="already exists"):
         export_yolo(manifest, root, out, {"heavy_burr": 0})
+
+
+def test_exported_dataset_paths_resolve_from_another_working_directory(tmp_path, monkeypatch):
+    root, manifest = dataset(tmp_path)
+    destination = tmp_path / "exports" / "plate run"
+    export_yolo(manifest, root, destination, {"heavy_burr": 0})
+    lines = (destination / "dataset.yaml").read_text(encoding="utf-8").splitlines()
+    base = Path(json.loads(lines[0].removeprefix("path: ")))
+    paths = dict(line.split(": ", 1) for line in lines[1:4])
+    monkeypatch.chdir(tmp_path / "input")
+    assert base == destination.resolve()
+    assert base != Path.cwd()
+    assert {key: (base / relative).resolve() for key, relative in paths.items()} == {
+        "train": (destination / "images" / "train").resolve(),
+        "val": (destination / "images" / "validation").resolve(),
+        "test": (destination / "images" / "test").resolve(),
+    }
+    assert (base / paths["train"] / "a.png").is_file()
+    assert ".forgesight-yolo-" not in lines[0]
 
 
 def test_clean_reviewed_image_has_empty_label_file(tmp_path):
