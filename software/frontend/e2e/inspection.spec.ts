@@ -196,6 +196,13 @@ test('backend restart preserves reviews and safe disconnect status', async ({ pa
   await expect(page.getByRole('button', { name: 'Run clean part' })).toBeEnabled();
   await page.getByRole('button', { name: 'Run clean part' }).click();
   await expect(page.getByRole('status').getByText('PASS', { exact: true })).toBeVisible();
+  const uncertain = await page.request.post('/api/v1/inspections/replay', { data: { scenario: 'uncertain_burr' } });
+  expect(uncertain.ok()).toBeTruthy();
+  const eventId = (await uncertain.json()).event.event_id as string;
+  const review = await page.request.post(`/api/v1/inspections/${eventId}/review`, {
+    data: { reviewer_id: 'demo-operator', corrected_result: 'FAIL', note: 'Manual burr review' },
+  });
+  expect(review.ok()).toBeTruthy();
   await servers.stopBackend();
   await expect(page.getByRole('status')).toContainText('Disconnected');
   await expect(page.getByRole('status')).not.toContainText('PASS');
@@ -203,7 +210,7 @@ test('backend restart preserves reviews and safe disconnect status', async ({ pa
   await expect(page.getByText('Connected to local backend')).toBeVisible();
   const history = page.getByRole('heading', { name: 'Inspection history' }).locator('..');
   await history.getByLabel('Result').selectOption('RECHECK');
-  await history.locator('tbody tr').filter({ hasText: 'uncertain burr' }).getByRole('button', { name: /View inspection/ }).click();
+  await history.getByRole('button', { name: `View inspection ${eventId}` }).click();
   const detail = page.getByRole('heading', { name: 'Inspection detail' }).locator('..');
   await expect(detail).toContainText('FAIL by demo-operator (Manual burr review)');
   await expect(detail).toContainText('RECHECK');

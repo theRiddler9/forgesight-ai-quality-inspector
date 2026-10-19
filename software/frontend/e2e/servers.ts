@@ -12,7 +12,7 @@ export class LocalServers {
   readonly dbPath = resolve(this.runDir, 'audit.sqlite3');
   private backend?: ChildProcess;
   private preview?: ChildProcess;
-  private output = '';
+  private output = new Map<ChildProcess, string>();
 
   async start(): Promise<void> {
     mkdirSync(this.runDir, { recursive: true });
@@ -52,22 +52,23 @@ export class LocalServers {
 
   private launch(executable: string, args: string[], cwd: string, env: Record<string, string> = {}): ChildProcess {
     const child = spawn(executable, args, { cwd, env: { ...process.env, ...env }, windowsHide: true });
-    child.stdout?.on('data', data => { this.output += String(data).slice(-2000); });
-    child.stderr?.on('data', data => { this.output += String(data).slice(-2000); });
+    this.output.set(child, '');
+    child.stdout?.on('data', data => { this.output.set(child, ((this.output.get(child) ?? '') + String(data)).slice(-2000)); });
+    child.stderr?.on('data', data => { this.output.set(child, ((this.output.get(child) ?? '') + String(data)).slice(-2000)); });
     return child;
   }
 
   private async waitFor(url: string, child: ChildProcess): Promise<void> {
     const deadline = Date.now() + 15_000;
     while (Date.now() < deadline) {
-      if (child.exitCode !== null) throw new Error(`test server exited: ${this.output.slice(-2000)}`);
+      if (child.exitCode !== null) throw new Error(`test server exited: ${(this.output.get(child) ?? '').slice(-2000)}`);
       try {
         const response = await fetch(url);
         if (response.ok) return;
       } catch { /* startup is still in progress */ }
       await new Promise(resolve => setTimeout(resolve, 100));
     }
-    throw new Error(`test server did not start: ${this.output.slice(-2000)}`);
+    throw new Error(`test server did not start: ${(this.output.get(child) ?? '').slice(-2000)}`);
   }
 
   async stop(): Promise<void> {
