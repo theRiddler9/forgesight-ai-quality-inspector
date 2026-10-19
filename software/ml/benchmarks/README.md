@@ -26,4 +26,18 @@ python -m software.ml.benchmarks --adapter my_runtime:create_infer --frames data
 
 The target label is descriptive metadata supplied by the caller. The command does
 not confirm that the named device or accelerator was used. The adapter and model
-runtime must be installed in the active Python environment.
+runtime must be installed in the active Python environment. When `--artifact` is
+provided, the report stores its filename, size, and SHA-256; the run is rejected if
+the artifact changes during measurement. Reports also capture installed ONNX/RKNN
+runtime versions, detected host model, and SoC temperature before and after the run
+when Linux thermal telemetry is available. Missing values are recorded as `null`.
+
+The report format is described by `report.schema.json`. To produce a CSV overview
+from multiple reports without modifying the source JSON:
+
+```powershell
+python -m software.ml.benchmarks.summarize data/benchmark/run-*.json --output data/benchmark/summary.csv
+```
+
+The summarizer recomputes latency statistics from the raw samples. It reports
+timing only; it does not calculate accuracy or determine whether a KPI passed.
