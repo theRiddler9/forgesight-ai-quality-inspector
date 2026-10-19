@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import csv
+import glob
 import json
 import math
 import statistics
@@ -87,7 +88,16 @@ def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
     try:
-        rows = [summarize_report(path) for path in args.reports]
+        report_paths: list[Path] = []
+        for path in args.reports:
+            matches = sorted(glob.glob(str(path)))
+            if matches:
+                report_paths.extend(Path(match) for match in matches)
+            elif glob.has_magic(str(path)):
+                parser.error(f"report pattern matched no files: {path}")
+            else:
+                report_paths.append(path)
+        rows = [summarize_report(path) for path in report_paths]
         args.output.parent.mkdir(parents=True, exist_ok=True)
         with args.output.open("w", encoding="utf-8", newline="") as stream:
             writer = csv.DictWriter(stream, fieldnames=list(rows[0]))
