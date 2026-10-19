@@ -17,11 +17,12 @@ after the model artifact and calibration handoff are available.
 ## Command line
 
 Save a NumPy `.npy` input frame or batch and provide a local zero-argument factory
-whose return value accepts one frame, for example `my_runtime:create_infer`. Run
-from the repository root:
+whose return value accepts one frame, for example `my_runtime:create_infer`. Select
+the layout explicitly: `gray` is one `H×W` image, `gray-batch` is `N×H×W`, `bgr`
+is one `H×W×3` image, and `bgr-batch` is `N×H×W×3`. Run from the repository root:
 
 ```powershell
-python -m software.ml.benchmarks --adapter my_runtime:create_infer --frames data/benchmark/frames.npy --model-id local-model-v1 --target-label orange-pi-5-rk3588s --warmup 10 --repetitions 100 --output data/benchmark/report.json
+python -m software.ml.benchmarks --adapter my_runtime:create_infer --frames data/benchmark/frames.npy --input-layout gray-batch --model-id local-model-v1 --target-label orange-pi-5-rk3588s --warmup 10 --repetitions 100 --output data/benchmark/report.json
 ```
 
 The target label is descriptive metadata supplied by the caller. The command does
@@ -41,3 +42,5 @@ python -m software.ml.benchmarks.summarize data/benchmark/run-*.json --output da
 
 The summarizer recomputes latency statistics from the raw samples. It reports
 timing only; it does not calculate accuracy or determine whether a KPI passed.
+It expands wildcard report paths itself, including the `run-*.json` pattern shown
+above, so the command works in PowerShell as written.
