@@ -13,10 +13,12 @@ from typing import Literal
 from uuid import UUID
 
 import psutil
+from jsonschema import ValidationError
 from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi import WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.middleware.trustedhost import TrustedHostMiddleware
 from pydantic import BaseModel, Field
 
 from software.backend.config import BackendSettings
@@ -55,6 +57,12 @@ class ReviewRequest(BaseModel):
 def _require_local_client(request: Request) -> None:
     if request.client is None or request.client.host not in _LOOPBACK_CLIENTS:
         raise HTTPException(status_code=403, detail="local operator access only")
+    origin = request.headers.get("origin")
+    if origin is not None and origin not in _LOCAL_ORIGINS and origin not in {
+        f"http://{host}:{request.app.state.settings.port}"
+        for host in ("localhost", "127.0.0.1")
+    }:
+        raise HTTPException(status_code=403, detail="local operator origin only")
 
 
 class HealthResponse(BaseModel):
@@ -88,7 +96,12 @@ async def _lifespan(app: FastAPI):
     yield
 
 
-def create_app(db_path: str | Path | None = None, fixture_dir: str | Path | None = None) -> FastAPI:
+def create_app(
+    db_path: str | Path | None = None,
+    fixture_dir: str | Path | None = None,
+    *,
+    allow_test_host: bool = False,
+) -> FastAPI:
     settings = BackendSettings.from_environment()
     if db_path is not None or fixture_dir is not None:
         settings = BackendSettings(
@@ -103,6 +116,11 @@ def create_app(db_path: str | Path | None = None, fixture_dir: str | Path | None
         allow_origins=sorted(_LOCAL_ORIGINS),
         allow_methods=["GET", "POST"],
         allow_headers=["*"],
+    )
+    app.add_middleware(
+        TrustedHostMiddleware,
+        allowed_hosts=["localhost", "127.0.0.1", "[::1]"] + (["testserver"] if allow_test_host else []),
+        www_redirect=False,
     )
 
     @app.get("/health", response_model=HealthResponse)
@@ -225,7 +243,8 @@ def create_app(db_path: str | Path | None = None, fixture_dir: str | Path | None
             )
         except ReplayError as exc:
             raise HTTPException(status_code=404, detail=exc.code) from exc
-        except (sqlite3.Error, OSError, RuntimeError) as exc:
+        except (sqlite3.Error, OSError, RuntimeError, ValueError, ValidationError) as exc:
+            log.exception("replay inspection or audit failed")
             raise HTTPException(status_code=503, detail="inspection or audit unavailable") from exc
         if inserted:
             try:

@@ -1,10 +1,11 @@
 from datetime import datetime, timedelta, timezone
 import asyncio
+from functools import partial
 
 from fastapi.testclient import TestClient
 
 import software.backend.app as app_module
-from software.backend.app import create_app
+from software.backend.app import create_app as production_app
 from software.backend.database import AuditStore
 from software.common.schemas import (
     AlertSeverity,
@@ -15,6 +16,8 @@ from software.common.schemas import (
     PokaYokeStatus,
     WatchdogAlert,
 )
+
+create_app = partial(production_app, allow_test_host=True)
 
 
 def make_inspection(

@@ -1,14 +1,17 @@
 from pathlib import Path
+from functools import partial
 
 import pytest
+from jsonschema import ValidationError
 from fastapi.testclient import TestClient
 from starlette.websockets import WebSocketDisconnect
 
-from software.backend.app import create_app
+from software.backend.app import create_app as production_app
 from software.inspection.events import validate_event
 
 
 FIXTURES = Path(__file__).resolve().parents[2] / "fixtures"
+create_app = partial(production_app, allow_test_host=True)
 
 
 def test_replay_is_committed_before_websocket_and_retrievable(tmp_path):
@@ -133,3 +136,85 @@ def test_publish_failure_leaves_committed_event_retrievable(tmp_path, monkeypatc
         assert response.status_code == 200
         event = response.json()["event"]
         assert client.get(f"/api/v1/inspections/{event['event_id']}").json() == event
+
+
+@pytest.mark.parametrize("host", ["localhost:8000", "127.0.0.1:8000", "[::1]:8000", "testserver"])
+def test_trusted_local_hosts_can_inspect(tmp_path, host):
+    with TestClient(create_app(tmp_path / "audit.sqlite3", fixture_dir=FIXTURES)) as client:
+        response = client.post(
+            "/api/v1/inspections/replay", headers={"host": host}, json={"scenario": "clean_part"}
+        )
+        assert response.status_code == 200
+        assert client.get("/api/v1/inspections").json()["total"] == 1
+
+
+def test_untrusted_host_cannot_mutate_or_open_websocket(tmp_path):
+    with TestClient(create_app(tmp_path / "audit.sqlite3", fixture_dir=FIXTURES)) as client:
+        rejected = client.post(
+            "/api/v1/inspections/replay",
+            headers={"host": "attacker.example"}, json={"scenario": "clean_part"},
+        )
+        assert rejected.status_code == 400
+        assert client.get("/api/v1/inspections").json()["total"] == 0
+        with pytest.raises(WebSocketDisconnect):
+            with client.websocket_connect("/ws/inspections", headers={"host": "attacker.example"}):
+                pass
+
+
+def test_production_host_configuration_excludes_testserver(tmp_path):
+    with TestClient(production_app(tmp_path / "audit.sqlite3", fixture_dir=FIXTURES)) as client:
+        rejected = client.post("/api/v1/inspections/replay", json={"scenario": "clean_part"})
+        assert rejected.status_code == 400
+        accepted = client.post(
+            "/api/v1/inspections/replay", headers={"host": "localhost:8000"},
+            json={"scenario": "clean_part"},
+        )
+        assert accepted.status_code == 200
+
+
+def test_untrusted_host_cannot_append_review(tmp_path):
+    with TestClient(create_app(tmp_path / "audit.sqlite3", fixture_dir=FIXTURES)) as client:
+        event_id = client.post("/api/v1/inspections/replay", json={"scenario": "clean_part"}).json()["event"]["event_id"]
+        rejected = client.post(
+            f"/api/v1/inspections/{event_id}/review", headers={"host": "attacker.example"},
+            json={"reviewer_id": "tester", "corrected_result": "FAIL", "note": "test"},
+        )
+        assert rejected.status_code == 400
+        assert client.get(f"/api/v1/inspections/{event_id}/reviews").json() == []
+
+
+def test_foreign_browser_origin_cannot_mutate_even_with_trusted_host(tmp_path):
+    with TestClient(create_app(tmp_path / "audit.sqlite3", fixture_dir=FIXTURES)) as client:
+        response = client.post(
+            "/api/v1/inspections/replay",
+            headers={"origin": "https://attacker.example"}, json={"scenario": "clean_part"},
+        )
+        assert response.status_code == 403
+        assert client.get("/api/v1/inspections").json()["total"] == 0
+
+
+def test_remote_client_cannot_mutate_with_trusted_host(tmp_path):
+    with TestClient(
+        create_app(tmp_path / "audit.sqlite3", fixture_dir=FIXTURES),
+        client=("192.0.2.5", 12345),
+    ) as client:
+        response = client.post("/api/v1/inspections/replay", json={"scenario": "clean_part"})
+        assert response.status_code == 403
+        assert client.get("/api/v1/inspections").json()["total"] == 0
+
+
+@pytest.mark.parametrize("failure", [ValueError("private path C:/secret"), ValidationError("private schema detail")])
+def test_internal_validation_failure_returns_stable_error_and_safe_outputs(tmp_path, monkeypatch, failure):
+    app = create_app(tmp_path / "audit.sqlite3", fixture_dir=FIXTURES)
+    with TestClient(app, raise_server_exceptions=False) as client:
+        monkeypatch.setattr(
+            app.state.audit_store, "append_inspection_pair",
+            lambda *_: (_ for _ in ()).throw(failure),
+        )
+        response = client.post("/api/v1/inspections/replay", json={"scenario": "clean_part"})
+        assert response.status_code == 503
+        assert response.json() == {"detail": "inspection or audit unavailable"}
+        assert client.get("/api/v1/inspections").json()["total"] == 0
+        outputs = client.get("/api/v1/health").json()["mock_io_state"]
+        assert outputs["green"] is False
+        assert outputs["amber"] is True
