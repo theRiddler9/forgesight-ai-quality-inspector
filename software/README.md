@@ -51,7 +51,7 @@ Select each button in the console and check the live result, image/geometry expl
 
 The images and their generator are in `fixtures/`; see [fixture limitations](fixtures/README.md). The burr confidence is scenario metadata, **not image-derived AI inference**. The light, buzzer, and ring output are mock state only. Software timing is measured on the development machine and is not the Orange Pi trigger-to-decision latency. No recall, precision, model parity, GPIO isolation, or physical safety claim follows from this demo.
 
-The canonical event conforms to `contracts/inspection-event.schema.json`. The earlier team `InspectionResult` remains the edge/backend projection. `backend/database.py` commits both records in one SQLite transaction; WebSocket publication follows that commit. Reviews are appended separately and never alter the original decision. REST clients can recover missed live events from `GET /api/v1/inspections`.
+The canonical event conforms to `contracts/inspection-event.schema.json`. The earlier team `InspectionResult` remains the edge/backend projection. `backend/database.py` commits both records in one SQLite transaction; WebSocket publication follows that commit. Reviews are appended separately and never alter the original decision. REST clients can recover missed inspection history from `GET /api/v1/inspections/history` (the `InspectionResult` projection). The HMI uses `GET /api/v1/inspections` for the canonical event collection and `GET /api/v1/inspections/{event_id}` for one event's detail.
 
 ## Verify
 
