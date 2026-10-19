@@ -1,4 +1,5 @@
 import json
+import math
 from pathlib import Path
 
 import pytest
@@ -79,3 +80,35 @@ def test_real_backend_requires_model_metadata_and_calibration():
     data["detector"].pop("artifact_sha256")
     with pytest.raises(ValidationError):
         ComponentProfile.model_validate(data)
+
+
+@pytest.mark.parametrize("path", [
+    ("roi", "x"), ("roi", "y"), ("roi", "width"), ("roi", "height"),
+    ("geometry", "expected_orientation_deg"), ("geometry", "min_part_area_px"),
+    ("geometry", "max_part_area_ratio"), ("geometry", "min_contrast_std"),
+    ("geometry", "expected_center_px", 0), ("geometry", "center_tolerance_px"),
+    ("geometry", "max_tilt_deg"), ("geometry", "expected_size_px", 1),
+    ("geometry", "size_tolerance_ratio"), ("geometry", "hole_area_px", 0),
+    ("geometry", "hole_center_tolerance_px"), ("geometry", "physical_tolerance_mm"),
+    ("preprocessing", "contrast_clip_limit"), ("thresholds", "fail_confidence"),
+    ("calibration", "pixels_per_mm"),
+])
+@pytest.mark.parametrize("invalid", [math.nan, math.inf, -math.inf])
+def test_profile_rejects_nonfinite_numeric_values(path, invalid):
+    data = profile_data()
+    target = data
+    for segment in path[:-1]:
+        target = target[segment]
+    target[path[-1]] = invalid
+    with pytest.raises(ValidationError):
+        ComponentProfile.model_validate(data)
+
+
+def test_profile_accepts_finite_geometry_boundaries():
+    data = profile_data()
+    data["geometry"].update(min_contrast_std=0, center_tolerance_px=0,
+                            max_tilt_deg=45, hole_center_tolerance_px=0,
+                            physical_tolerance_mm=0)
+    profile = ComponentProfile.model_validate(data)
+    assert profile.geometry.max_tilt_deg == 45
+    assert profile.geometry.center_tolerance_px == 0
