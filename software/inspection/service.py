@@ -109,7 +109,7 @@ class ReplayService:
             if fault:
                 reason = fault.replace("_", " ").lower()
             else:
-                reason = decide(result.poka_yoke_status, result.detections).reason
+                reason = decide(result.poka_yoke_status, result.detections, profile.edge_config().thresholds).reason
             event = build_event(result, scenario, source.last_packet, reason, fault, profile)
             event["mock_io_state"] = {
                 "green": self.gpio.state.green,

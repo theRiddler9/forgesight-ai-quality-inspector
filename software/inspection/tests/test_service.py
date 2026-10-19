@@ -115,6 +115,27 @@ def test_profile_identity_is_persisted_and_thresholds_change_without_decision_re
     assert service.store.canonical_inspection(first["event_id"]) == first
 
 
+@pytest.mark.parametrize("fail_threshold,scenario,decision,reason", [
+    (0.95, "heavy_burr", "RECHECK", "possible burr"),
+    (0.60, "uncertain_burr", "FAIL", "burr detected"),
+])
+def test_replay_explanation_uses_active_profile_thresholds(tmp_path, fail_threshold, scenario, decision, reason):
+    registry = ProfileRegistry(Path(__file__).resolve().parents[2] / "profiles" / "catalog")
+    changed = registry.active.model_copy(update={
+        "version": "1.0.1",
+        "thresholds": registry.active.thresholds.model_copy(update={"fail_confidence": fail_threshold}),
+        "detector": registry.active.detector.model_copy(update={"compatible_profiles": ["metal-plate-v1@1.0.1"]}),
+    })
+    registry._profiles[(changed.profile_id, changed.version)] = changed
+    registry.select("metal-plate-v1", "1.0.1")
+    store = AuditStore(tmp_path / "audit.sqlite3")
+    event, inserted = ReplayService(store, FIXTURES, registry).inspect(scenario)
+    assert inserted
+    assert event["result"] == decision
+    assert event["decision_reasons"] == [reason]
+    assert store.canonical_inspection(event["event_id"])["decision_reasons"] == [reason]
+
+
 def test_unavailable_real_detector_cannot_pass(tmp_path):
     catalog = Path(__file__).resolve().parents[2] / "profiles" / "catalog"
     registry = ProfileRegistry(catalog)
