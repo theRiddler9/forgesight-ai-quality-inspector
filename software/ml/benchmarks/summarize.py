@@ -10,6 +10,24 @@ import statistics
 from pathlib import Path
 from typing import Any
 
+_SCHEMA_PATH = Path(__file__).with_name("report.schema.json")
+
+
+def _validate_report(report: dict[str, Any]) -> None:
+    """Validate one report against the versioned local JSON Schema."""
+    try:
+        from jsonschema import Draft202012Validator, FormatChecker, ValidationError
+    except ImportError as exc:
+        raise RuntimeError(
+            "report validation requires the development dependencies; "
+            "install software/requirements-dev.txt"
+        ) from exc
+    schema = json.loads(_SCHEMA_PATH.read_text(encoding="utf-8"))
+    try:
+        Draft202012Validator(schema, format_checker=FormatChecker()).validate(report)
+    except ValidationError as exc:
+        raise ValueError(f"report does not match the benchmark schema: {exc.message}") from exc
+
 
 def summarize_report(path: str | Path) -> dict[str, Any]:
     """Load one report and recompute latency statistics from its raw samples."""
@@ -17,6 +35,7 @@ def summarize_report(path: str | Path) -> dict[str, Any]:
     report = json.loads(source.read_text(encoding="utf-8"))
     if not isinstance(report, dict):
         raise ValueError(f"report must be a JSON object: {source}")
+    _validate_report(report)
     if report.get("schema_version") != "1.0.0":
         raise ValueError(f"unsupported report schema in {source}")
     latency = report.get("latency_ms")
@@ -74,7 +93,7 @@ def main(argv: list[str] | None = None) -> int:
             writer = csv.DictWriter(stream, fieldnames=list(rows[0]))
             writer.writeheader()
             writer.writerows(rows)
-    except (OSError, json.JSONDecodeError, ValueError) as exc:
+    except (OSError, json.JSONDecodeError, ValueError, RuntimeError) as exc:
         parser.error(str(exc))
     print(f"Wrote {len(rows)} benchmark summaries to {args.output}")
     return 0
