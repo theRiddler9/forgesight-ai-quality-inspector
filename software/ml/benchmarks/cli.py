@@ -34,6 +34,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--adapter", required=True, help="local zero-argument factory as module.path:name")
     parser.add_argument("--frames", required=True, type=Path, help=".npy frame or frame batch")
     parser.add_argument("--model-id", required=True)
+    parser.add_argument("--artifact", type=Path, help="optional model file to hash before and after timing")
     parser.add_argument("--target-label", required=True, help="metadata label, not hardware verification")
     parser.add_argument("--warmup", type=int, default=10)
     parser.add_argument("--repetitions", type=int, default=100)
@@ -60,6 +61,7 @@ def main(argv: list[str] | None = None) -> int:
             repetitions=args.repetitions,
             model_id=args.model_id,
             target_label=args.target_label,
+            artifact_path=args.artifact,
         )
         write_report(report, args.output)
     except (OSError, ValueError, ImportError, AttributeError) as exc:
