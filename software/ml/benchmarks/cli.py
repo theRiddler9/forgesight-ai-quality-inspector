@@ -33,6 +33,12 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Benchmark a local inference adapter")
     parser.add_argument("--adapter", required=True, help="local zero-argument factory as module.path:name")
     parser.add_argument("--frames", required=True, type=Path, help=".npy frame or frame batch")
+    parser.add_argument(
+        "--input-layout",
+        required=True,
+        choices=("gray", "gray-batch", "bgr", "bgr-batch"),
+        help="frame dimensions: HxW, NxHxW, HxWx3, or NxHxWx3 respectively",
+    )
     parser.add_argument("--model-id", required=True)
     parser.add_argument("--artifact", type=Path, help="optional model file to hash before and after timing")
     parser.add_argument("--target-label", required=True, help="metadata label, not hardware verification")
@@ -50,9 +56,17 @@ def main(argv: list[str] | None = None) -> int:
         parser.error("--frames must point to an existing .npy file")
     try:
         frames = np.load(args.frames, mmap_mode="r", allow_pickle=False)
-        if frames.ndim < 3:
-            raise ValueError("frame data must have at least three dimensions")
-        frame_sequence = [frames] if frames.ndim == 3 else frames
+        expected_dimensions = {
+            "gray": 2,
+            "gray-batch": 3,
+            "bgr": 3,
+            "bgr-batch": 4,
+        }[args.input_layout]
+        if frames.ndim != expected_dimensions:
+            raise ValueError(f"{args.input_layout} input must have {expected_dimensions} dimensions")
+        if args.input_layout in {"bgr", "bgr-batch"} and frames.shape[-1] != 3:
+            raise ValueError("BGR input must have three channels on its final axis")
+        frame_sequence = [frames] if args.input_layout in {"gray", "bgr"} else frames
         infer = _load_adapter(args.adapter)
         report = benchmark_inference(
             infer,
