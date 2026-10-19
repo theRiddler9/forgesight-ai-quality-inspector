@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Bar, BarChart, Tooltip, XAxis, YAxis } from 'recharts';
 import { api, websocketUrl } from './api';
 import InspectionStatus from './components/InspectionStatus';
@@ -32,11 +32,23 @@ export default function App() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const refreshHistory = useCallback(async () => setHistory(await api.history(filter, page)), [filter, page]);
+  const historySelection = useRef({ filter, page });
+  historySelection.current = { filter, page };
+  const historyRequestId = useRef(0);
+  const refreshHistory = useCallback(async () => {
+    const requestId = ++historyRequestId.current;
+    const { filter, page } = historySelection.current;
+    const response = await api.history(filter, page);
+    if (requestId === historyRequestId.current) setHistory(response);
+  }, []);
   const refreshSummary = useCallback(async () => {
     const [summary, status] = await Promise.all([api.metrics(), api.health()]);
     setMetrics(summary); setHealth(status);
   }, []);
+
+  useEffect(() => {
+    void refreshHistory().catch((err: Error) => setError(err.message));
+  }, [filter, page, refreshHistory]);
 
   useEffect(() => {
     let active = true;
@@ -68,7 +80,7 @@ export default function App() {
       socket.onerror = () => socket?.close();
     };
     void api.scenarios().then(setScenarios).catch((err: Error) => setError(err.message));
-    void Promise.all([refreshHistory(), refreshSummary()]).catch((err: Error) => setError(err.message));
+    void refreshSummary().catch((err: Error) => setError(err.message));
     connect();
     return () => { active = false; if (retry) clearTimeout(retry); socket?.close(); };
   }, [refreshHistory, refreshSummary]);
