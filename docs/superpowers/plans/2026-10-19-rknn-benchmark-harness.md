@@ -32,15 +32,38 @@
 **Files:**
 - Create: `software/ml/benchmarks/runner.py`
 - Create: `software/ml/benchmarks/__init__.py`
+- Create: `software/ml/benchmarks/environment.py`
+- Create: `software/ml/benchmarks/report.schema.json`
 - Create: `software/ml/benchmarks/README.md`
+- Modify: `software/ml/benchmarks/runner.py` to record artifact identity and runtime telemetry.
 
 **Interfaces:**
 - `benchmark_inference(infer, frames, *, warmup_runs, repetitions, model_id, target_label) -> dict`
 - `write_report(report, output_path) -> None`
 
-- [ ] Validate input and count parameters before execution.
-- [ ] Run warmups without including them in measured samples.
-- [ ] Time one callable invocation per measured sample using `perf_counter_ns`.
-- [ ] Include raw millisecond samples, mean, median, nearest-rank p95, min, max, UTC time, run parameters, and Python/platform metadata.
-- [ ] Document that artifact loading, calibration, accuracy evaluation, and Orange Pi/RKNN execution are later handoff work.
-- [ ] Review the diff and run a syntax check; automated tests are not part of this task unless requested.
+- [x] Validate input and count parameters before execution.
+- [x] Run warmups without including them in measured samples.
+- [x] Time one callable invocation per measured sample using `perf_counter_ns`.
+- [x] Include raw millisecond samples, mean, median, nearest-rank p95, min, max, UTC time, run parameters, and Python/platform metadata.
+- [x] Optionally hash a model artifact before and after the run; fail if it changes.
+- [x] Record runtime package versions and real SoC temperature samples when available.
+- [x] Define the JSON report shape without changing shared inspection contracts.
+- [x] Document that artifact loading, calibration, accuracy evaluation, and Orange Pi/RKNN execution are later handoff work.
+- [x] Review the diff and run a syntax check; automated tests are not part of this task unless requested.
+
+### Task 2: Add local CLI and run summary
+
+**Files:**
+- Create: `software/ml/benchmarks/cli.py`
+- Create: `software/ml/benchmarks/__main__.py`
+- Create: `software/ml/benchmarks/summarize.py`
+- Modify: `software/ml/benchmarks/README.md`
+
+**Interfaces:**
+- `python -m software.ml.benchmarks` loads a local adapter factory and `.npy` frames.
+- `python -m software.ml.benchmarks.summarize` recomputes summary statistics from one or more report files and writes CSV.
+
+- [x] Keep adapter loading local and explicit through `module.path:factory`.
+- [x] Keep target labels descriptive only and retain missing telemetry as null.
+- [x] Recompute CSV statistics from raw samples; do not treat timing as an accuracy or KPI verdict.
+- [x] Run Python syntax checks, JSON syntax check, CLI help check, and whitespace check.
