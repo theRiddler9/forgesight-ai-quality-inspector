@@ -121,7 +121,8 @@ def test_camera_loss_shows_fault_and_trips_watchdog():
     assert pipe.run_once() is not None
     for _ in range(3):
         assert pipe.run_once() is None
-    assert lights(gpio) == (False, False, True, True)
+    assert lights(gpio) == (False, False, True, False)
+    assert gpio.state.ring_pwm_pct == 0
     assert [a.alert_type for a in pipe.watchdog.alerts] == [AlertType.CAMERA_DISCONNECTED]
 
 
@@ -142,26 +143,32 @@ def test_failed_capture_publishes_recheck_audit_record(tmp_path):
 
 
 def test_stall_fault_stays_latched_until_next_pass_decision():
+    class Clock:
+        value = 0.0
+
+        def __call__(self):
+            return self.value
+
+    clock = Clock()
+    watchdog = Watchdog(clock=clock)
+
     class SlowOnceEngine(FixedEngine):
         def infer(self, frame):
             self.calls += 1
             if self.calls == 1:
-                time.sleep(0.25)
+                clock.value = 0.25
+                watchdog.check()
             return []
 
     gpio = MockGPIOController()
-    watchdog = Watchdog()
     pipe = InspectionPipeline(
         SyntheticCamera(seed=1), SlowOnceEngine([]), gpio, watchdog, lambda: 52.0
     )
-    watchdog.start(poll_ms=2.0)
-    try:
-        assert pipe.run_once().result == R.PASS
-        assert lights(gpio) == (False, False, True, True)
-        assert pipe.run_once().result == R.PASS
-        assert lights(gpio) == (True, False, False, False)
-    finally:
-        watchdog.stop()
+    assert pipe.run_once().result == R.PASS
+    assert lights(gpio) == (False, False, True, False)
+    assert gpio.state.ring_pwm_pct == 0
+    assert pipe.run_once().result == R.PASS
+    assert lights(gpio) == (True, False, False, False)
 
 
 def test_overheating_raises_warning_but_still_reports_result():

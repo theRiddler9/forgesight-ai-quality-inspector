@@ -1,0 +1,8 @@
+{
+  "clean_part": {"image": "clean.png", "detection": null},
+  "heavy_burr": {"image": "heavy_burr.png", "detection": {"class_name": "burr", "confidence": 0.91}},
+  "uncertain_burr": {"image": "uncertain_burr.png", "detection": {"class_name": "burr", "confidence": 0.65}},
+  "missing_hole": {"image": "missing_hole.png", "detection": null},
+  "no_part": {"image": "no_part.png", "detection": null},
+  "capture_fault": {"image": null, "detection": null}
+}

@@ -1,0 +1,54 @@
+{
+  "schema_version": "1.0.0",
+  "event_id": "7b4d47c8-083c-4baa-b86c-7a5b56cb463a",
+  "timestamp": "2026-10-02T09:30:00Z",
+  "part_id": "fixture-part-001",
+  "result": "RECHECK",
+  "defects": [
+    {
+      "type": "heavy_burr",
+      "confidence": 0.61,
+      "bbox_normalized": [0.25, 0.31, 0.18, 0.12]
+    }
+  ],
+  "poka_yoke": {
+    "part_present": true,
+    "position_ok": true,
+    "orientation_ok": true,
+    "hole_present": true,
+    "size_in_range": null,
+    "reasons": ["MODEL_CONFIDENCE_IN_RECHECK_BAND"]
+  },
+  "latency_ms": {
+    "capture": 4.2,
+    "preprocess": 3.1,
+    "poka_yoke": 6.8,
+    "inference": 18.5,
+    "postprocess": 2.4,
+    "decision": 0.4,
+    "io": 0.8,
+    "total": 36.2
+  },
+  "soc_temperature_c": null,
+  "image": {
+    "source_id": "recorded-fixture",
+    "input_uri": "fixtures/images/fixture-part-001.png",
+    "evidence_uri": null,
+    "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+  },
+  "model": {
+    "name": "heavy-burr-placeholder",
+    "version": "0.0.0",
+    "runtime": "mock",
+    "artifact_sha256": null
+  },
+  "configuration_version": "fixture-v1",
+  "operator_review": {
+    "status": "PENDING",
+    "reviewed_at": null,
+    "reviewer_id": null,
+    "corrected_result": null,
+    "note": null
+  },
+  "faults": []
+}

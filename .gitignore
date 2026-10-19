@@ -14,6 +14,8 @@ dist/
 # Node / frontend
 node_modules/
 software/frontend/dist/
+software/frontend/test-results/
+software/frontend/playwright-report/
 
 # Runtime output (never commit)
 data/
@@ -27,6 +29,8 @@ data/
 Thumbs.db
 .vscode/
 .idea/
+.tools/
+.npm-cache/
 
 # SolidWorks / KiCad temp and backup files (keep native files, drop temp ones)
 ~$*
