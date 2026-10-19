@@ -1,4 +1,5 @@
 from pathlib import Path
+from functools import partial
 import pytest
 
 pytest.importorskip("onnx")
@@ -6,11 +7,12 @@ pytest.importorskip("onnxruntime")
 
 from fastapi.testclient import TestClient
 
-from software.backend.app import create_app
+from software.backend.app import create_app as production_app
 from software.ml.tests.test_onnx_adapter import fixture_configuration
 
 
 ROOT = Path(__file__).resolve().parents[2]
+create_app = partial(production_app, allow_test_host=True)
 
 
 def test_local_upload_commits_before_websocket_and_detail(tmp_path):

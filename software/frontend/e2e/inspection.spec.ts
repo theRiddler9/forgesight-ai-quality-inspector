@@ -267,3 +267,56 @@ if (process.env.FORGESIGHT_TEST_ONNX === '1') {
     await expect(page.getByRole('button', { name: `View inspection ${event.event_id}` })).toBeVisible();
   });
 }
+test('history controls keep one live WebSocket and fetch current selection', async ({ page }) => {
+  let connections = 0;
+  let closures = 0;
+  let scenarioRequests = 0;
+  const historyQueries: string[] = [];
+  page.on('websocket', socket => {
+    connections += 1;
+    socket.on('close', () => { closures += 1; });
+  });
+  page.on('request', request => {
+    const url = new URL(request.url());
+    if (url.pathname === '/api/v1/scenarios') scenarioRequests += 1;
+    if (url.pathname === '/api/v1/inspections') historyQueries.push(url.search);
+  });
+  await page.goto('/');
+  await expect(page.getByText('Connected to local backend')).toBeVisible();
+  expect(connections).toBe(1);
+  const history = page.getByRole('heading', { name: 'Inspection history' }).locator('..');
+  const filtered = page.waitForResponse(response =>
+    new URL(response.url()).pathname === '/api/v1/inspections' &&
+    new URL(response.url()).searchParams.get('result') === 'FAIL',
+  );
+  await history.getByLabel('Result').selectOption('FAIL');
+  const filteredTotal = (await filtered).json().then((body: { total: number }) => body.total);
+  await expect(history).toContainText(`${await filteredTotal} records`);
+  expect(connections).toBe(1);
+  expect(closures).toBe(0);
+  expect(scenarioRequests).toBe(1);
+
+  await history.getByLabel('Result').selectOption('ALL');
+  const created: string[] = [];
+  for (let index = 0; index < 21; index++) {
+    const response = await page.request.post('/api/v1/inspections/replay', { data: { scenario: 'clean_part' } });
+    created.push((await response.json()).event.event_id as string);
+  }
+  await expect(history.getByRole('button', { name: `View inspection ${created.at(-1)}` })).toBeVisible();
+  await expect(history.getByRole('button', { name: 'Next' })).toBeEnabled();
+  const pageTwo = page.waitForResponse(response => {
+    const url = new URL(response.url());
+    return url.pathname === '/api/v1/inspections' && url.searchParams.get('offset') === '20';
+  });
+  await history.getByRole('button', { name: 'Next' }).click();
+  await pageTwo;
+  await expect(history).toContainText('Page 2');
+  expect(historyQueries.some(query => new URLSearchParams(query).get('offset') === '20')).toBe(true);
+  expect(connections).toBe(1);
+  expect(closures).toBe(0);
+  expect(scenarioRequests).toBe(1);
+  const live = await page.request.post('/api/v1/inspections/replay', { data: { scenario: 'heavy_burr' } });
+  expect(live.ok()).toBeTruthy();
+  await expect(page.getByRole('status').getByText('FAIL', { exact: true })).toBeVisible();
+  expect(connections).toBe(1);
+});
