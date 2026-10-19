@@ -5,13 +5,13 @@ from __future__ import annotations
 import json
 import hashlib
 import math
-import platform
-import sys
 import time
 from collections.abc import Callable, Sequence
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
+
+from software.ml.benchmarks.environment import collect_static_environment, read_soc_temperature_c
 
 
 def benchmark_inference(
@@ -42,6 +42,8 @@ def benchmark_inference(
         raise ValueError("target_label must not be empty")
 
     artifact = _artifact_identity(artifact_path) if artifact_path is not None else None
+    environment = collect_static_environment()
+    environment["soc_temp_c_before"] = read_soc_temperature_c()
 
     frame_count = len(frames)
     for index in range(warmup_runs):
@@ -57,6 +59,7 @@ def benchmark_inference(
 
     if artifact_path is not None and _artifact_identity(artifact_path) != artifact:
         raise RuntimeError("model artifact changed during benchmark")
+    environment["soc_temp_c_after"] = read_soc_temperature_c()
 
     ordered = sorted(samples_ms)
     p95_index = math.ceil(0.95 * len(ordered)) - 1
@@ -78,12 +81,7 @@ def benchmark_inference(
             "min": ordered[0],
             "max": ordered[-1],
         },
-        "environment": {
-            "python_version": sys.version,
-            "platform": platform.platform(),
-            "machine": platform.machine(),
-            "processor": platform.processor(),
-        },
+        "environment": environment,
     }
 
 
