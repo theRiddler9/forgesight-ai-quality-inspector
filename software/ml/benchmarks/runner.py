@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import hashlib
 import math
 import platform
 import sys
@@ -21,6 +22,7 @@ def benchmark_inference(
     repetitions: int,
     model_id: str,
     target_label: str,
+    artifact_path: str | Path | None = None,
 ) -> dict[str, Any]:
     """Measure repeated inference calls and return raw samples with run metadata.
 
@@ -39,6 +41,8 @@ def benchmark_inference(
     if not isinstance(target_label, str) or not target_label.strip():
         raise ValueError("target_label must not be empty")
 
+    artifact = _artifact_identity(artifact_path) if artifact_path is not None else None
+
     frame_count = len(frames)
     for index in range(warmup_runs):
         infer(frames[index % frame_count])
@@ -51,12 +55,16 @@ def benchmark_inference(
         elapsed_ns = time.perf_counter_ns() - started_ns
         samples_ms.append(elapsed_ns / 1_000_000)
 
+    if artifact_path is not None and _artifact_identity(artifact_path) != artifact:
+        raise RuntimeError("model artifact changed during benchmark")
+
     ordered = sorted(samples_ms)
     p95_index = math.ceil(0.95 * len(ordered)) - 1
     return {
         "schema_version": "1.0.0",
         "created_at": datetime.now(timezone.utc).isoformat(),
         "model_id": model_id,
+        "artifact": artifact,
         "target_label": target_label,
         "target_label_is_metadata_only": True,
         "warmup_runs": warmup_runs,
@@ -84,6 +92,18 @@ def _median(ordered: Sequence[float]) -> float:
     if len(ordered) % 2:
         return ordered[middle]
     return (ordered[middle - 1] + ordered[middle]) / 2
+
+
+def _artifact_identity(artifact_path: str | Path) -> dict[str, Any]:
+    """Return stable file identity fields without exposing its absolute path."""
+    path = Path(artifact_path)
+    if not path.is_file():
+        raise ValueError("artifact_path must point to an existing file")
+    digest = hashlib.sha256()
+    with path.open("rb") as stream:
+        for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return {"filename": path.name, "size_bytes": path.stat().st_size, "sha256": digest.hexdigest()}
 
 
 def write_report(report: dict[str, Any], output_path: str | Path) -> None:
