@@ -74,6 +74,15 @@ def main(argv: list[str] | None = None) -> int:
             target_label=args.target_label,
             artifact_path=artifact_path,
         )
+        report["onnx_context"] = {
+            "backend": manifest.backend,
+            "profile_id": profile.profile_id,
+            "profile_version": profile.version,
+            "profile_fingerprint": profile.fingerprint,
+            "model_version": manifest.model_version,
+            "model_purpose": manifest.model_purpose,
+            "preprocessing_fingerprint": manifest.preprocessing_fingerprint,
+        }
         write_report(report, args.output)
     except (OSError, ValueError, RuntimeError, LookupError, json.JSONDecodeError) as exc:
         parser.error(str(exc))
