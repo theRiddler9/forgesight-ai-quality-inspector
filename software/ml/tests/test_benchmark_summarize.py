@@ -47,6 +47,20 @@ def test_summary_recomputes_statistics_from_raw_samples(tmp_path):
     assert row["artifact_sha256"] == "a" * 64
 
 
+def test_summary_preserves_profile_context_for_onnx_reports(tmp_path):
+    data = report([1.0])
+    data["onnx_context"] = {
+        "backend": "onnx", "profile_id": "metal-plate-v1", "profile_version": "9.1.0",
+        "profile_fingerprint": "b" * 64, "model_version": "1.2.3",
+        "model_purpose": "trained_unverified", "preprocessing_fingerprint": "c" * 64,
+    }
+    row = summarize.summarize_report(write_report(tmp_path / "onnx.json", data))
+    assert row["backend"] == "onnx"
+    assert row["profile_id"] == "metal-plate-v1"
+    assert row["profile_version"] == "9.1.0"
+    assert row["model_purpose"] == "trained_unverified"
+
+
 def test_summary_rejects_schema_invalid_report(tmp_path):
     data = report([1.0])
     data["extra"] = "not permitted"
