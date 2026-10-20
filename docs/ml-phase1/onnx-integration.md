@@ -39,6 +39,23 @@ Corrupt or wrong-size images, missing calibration, unsupported geometry, missing
 
 ## Training and hardware handoff
 
+Before registering an exported ONNX artifact, run the static contract preflight
+against the exact profile and manifest:
+
+```powershell
+python -m software.ml.export `
+  --profile-catalog data/models/catalog `
+  --profile <profile-id>@<version> `
+  --model-manifest data/models/model-manifest.json `
+  --model-root data/models `
+  --output data/models/onnx-validation.json
+```
+
+The report verifies the artifact hash, profile and preprocessing fingerprints, and
+the graph's single float32 input `[1,3,H,W]` and output `[1,4+C,N]` tensor shapes.
+It records `inference_executed: false` and `hardware_verified: false`; it is a
+registration gate, not accuracy, RKNN, Orange Pi, thermal, or latency evidence.
+
 1. Select and approve the physical component and reject tolerances; capture calibrated, rights-cleared images with part/session IDs and independent annotations.
 2. Train against the frozen splits, select thresholds on validation only, and report held-out heavy-burr recall and false acceptance with uncertainty intervals.
 3. Export a model and verify its actual ONNX input/output tensors against the contract above; otherwise implement a separately versioned decoder with fixture tests.
