@@ -4,6 +4,7 @@ import json
 
 import numpy as np
 import pytest
+import jsonschema
 
 from software.ml.export import validate
 
@@ -25,6 +26,8 @@ def test_export_cli_writes_static_validation_report(tmp_path):
     assert report["inference_executed"] is False
     assert report["hardware_verified"] is False
     assert report["graph"]["outputs"][0]["shape"] == [1, 5, 1]
+    schema = json.loads((__import__("pathlib").Path(__file__).parents[1] / "export" / "validation-report.schema.json").read_text())
+    jsonschema.Draft202012Validator(schema).validate(report)
 
 
 @pytest.mark.parametrize("bad_profile", ["metal-plate-v1", "missing@1.0.0"])
