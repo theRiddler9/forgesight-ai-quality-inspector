@@ -16,6 +16,7 @@ import cv2
 import numpy as np
 
 from software.edge.acquisition.camera import FrameSource
+from software.profiles.models import ImageSpec
 
 
 class ReplayError(Exception):
@@ -75,9 +76,10 @@ class ScenarioCatalog:
 
 
 class ReplayFrameSource(FrameSource):
-    def __init__(self, image_dir: str | Path, scenario: Scenario):
+    def __init__(self, image_dir: str | Path, scenario: Scenario, expected_image: ImageSpec | None = None):
         self.image_dir = Path(image_dir).resolve()
         self.scenario = scenario
+        self.expected_image = expected_image
         self.sequence_number = 0
         self.last_packet: FramePacket | None = None
         self.last_error: ReplayError | None = None
@@ -106,6 +108,8 @@ class ReplayFrameSource(FrameSource):
         height, width = image.shape[:2]
         if width < 32 or height < 32:
             raise ReplayError("FRAME_FORMAT_MISMATCH", f"fixture {path.name} is too small")
+        if self.expected_image and (width != self.expected_image.width or height != self.expected_image.height or self.expected_image.pixel_format != "BGR8"):
+            raise ReplayError("FRAME_FORMAT_MISMATCH", f"fixture {path.name} does not match component profile")
         packet = FramePacket(
             frame_id=str(uuid4()),
             captured_at=datetime.now(timezone.utc),

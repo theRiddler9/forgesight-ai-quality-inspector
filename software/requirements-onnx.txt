@@ -1,0 +1,4 @@
+# Optional local ONNX adapter and reproducible adapter-test graph generation.
+-r requirements-dev.txt
+onnxruntime>=1.18,<2
+onnx>=1.16,<2

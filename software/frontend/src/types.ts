@@ -19,9 +19,9 @@ export interface InspectionEvent {
   };
   latency_ms: Record<'capture' | 'preprocess' | 'poka_yoke' | 'inference' | 'postprocess' | 'decision' | 'io' | 'total', number>;
   image: { input_uri: string; evidence_uri: string | null; sha256: string | null; source_id: string };
-  model: { name: string; version: string; runtime: string; artifact_sha256: string | null };
+  model: { name: string; version: string; runtime: string; artifact_sha256: string | null; purpose?: 'adapter_test_fixture' | 'trained_unverified' | 'trained_validated' };
   configuration_version: string;
-  simulation: { synthetic_fixture: boolean; scenario_driven_detector: boolean; mock_io: boolean };
+  simulation: { synthetic_fixture: boolean; scenario_driven_detector: boolean; mock_io: boolean; test_model?: boolean };
   mock_io_state?: { green: boolean; red: boolean; amber: boolean; buzzer: boolean; ring_light_pwm: number };
 }
 

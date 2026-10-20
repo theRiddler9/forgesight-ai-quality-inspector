@@ -1,0 +1,3 @@
+# Optional training environment only; never required by the backend or HMI.
+-r requirements-dev.txt
+ultralytics>=8.4,<8.5
