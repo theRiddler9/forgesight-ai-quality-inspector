@@ -1,11 +1,28 @@
 import { execFileSync, spawn, type ChildProcess } from 'node:child_process';
 import { existsSync, mkdirSync } from 'node:fs';
+import { createServer } from 'node:net';
 import { resolve } from 'node:path';
 
 const frontendRoot = resolve(import.meta.dirname, '..');
 const repoRoot = resolve(frontendRoot, '../..');
 const localPython = resolve(repoRoot, '.tools/python/python.exe');
 const python = process.env.FORGESIGHT_PYTHON ?? (existsSync(localPython) ? localPython : 'python');
+
+export async function assertPortAvailable(port: number, service: string): Promise<void> {
+  const probe = createServer();
+  await new Promise<void>((resolve, reject) => {
+    probe.once('error', error => {
+      if ('code' in error && error.code === 'EADDRINUSE') {
+        reject(new Error(`Cannot start ${service}: port ${port} is already in use`));
+      } else {
+        reject(error);
+      }
+    });
+    probe.listen({ host: '127.0.0.1', port, exclusive: true }, () => {
+      probe.close(error => error ? reject(error) : resolve());
+    });
+  });
+}
 
 export class LocalServers {
   readonly runDir = resolve(repoRoot, '.tools/playwright-runs', `${Date.now()}-${process.pid}`);
@@ -15,12 +32,19 @@ export class LocalServers {
   private output = new Map<ChildProcess, string>();
 
   async start(): Promise<void> {
+    await assertPortAvailable(8000, 'backend');
+    await assertPortAvailable(4173, 'frontend preview');
     mkdirSync(this.runDir, { recursive: true });
     if (process.env.FORGESIGHT_TEST_ONNX === '1') {
       execFileSync(python, ['-m', 'software.ml.fixture_model', resolve(this.runDir, 'onnx'), '--bundle'],
         { cwd: repoRoot, windowsHide: true });
     }
     await this.startBackend();
+    await this.startPreview();
+  }
+
+  private async startPreview(): Promise<void> {
+    await assertPortAvailable(4173, 'frontend preview');
     this.preview = this.launch(process.execPath, [
       resolve(frontendRoot, 'node_modules/vite/bin/vite.js'),
       'preview', '--configLoader', 'runner', '--host', '127.0.0.1', '--port', '4173', '--strictPort',
@@ -29,6 +53,7 @@ export class LocalServers {
   }
 
   async startBackend(): Promise<void> {
+    await assertPortAvailable(8000, 'backend');
     this.backend = this.launch(python, ['-m', 'software.backend'], repoRoot, {
       FORGESIGHT_DB_PATH: this.dbPath,
       FORGESIGHT_API_HOST: '127.0.0.1',

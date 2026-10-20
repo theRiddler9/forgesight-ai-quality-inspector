@@ -1,12 +1,32 @@
 import { mkdirSync, readFileSync } from 'node:fs';
+import { createServer } from 'node:net';
 import { resolve } from 'node:path';
 import { expect, test, type Page, type WebSocketRoute } from '@playwright/test';
-import { LocalServers } from './servers';
+import { assertPortAvailable, LocalServers } from './servers';
 
 test.describe.configure({ mode: 'serial' });
 const servers = new LocalServers();
 test.beforeAll(async () => { await servers.start(); });
 test.afterAll(async () => { await servers.stop(); });
+
+test('server startup preflight rejects an occupied port', async () => {
+  const blocker = createServer();
+  await new Promise<void>((resolve, reject) => {
+    blocker.once('error', reject);
+    blocker.listen(0, '127.0.0.1', resolve);
+  });
+  const address = blocker.address();
+  if (!address || typeof address === 'string') throw new Error('test server did not bind a TCP port');
+  try {
+    await expect(assertPortAvailable(address.port, 'test backend')).rejects.toThrow(
+      `Cannot start test backend: port ${address.port} is already in use`,
+    );
+  } finally {
+    await new Promise<void>((resolve, reject) => {
+      blocker.close(error => error ? reject(error) : resolve());
+    });
+  }
+});
 
 async function captureEvidence(page: Page, name: string): Promise<void> {
   if (process.env.FORGESIGHT_CAPTURE_EVIDENCE !== '1') return;
