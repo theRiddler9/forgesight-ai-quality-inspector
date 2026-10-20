@@ -58,6 +58,10 @@ python -m software.ml.benchmarks.onnx_cli `
   --output data/benchmark/onnx-report.json
 ```
 
+The CLI loads the `.npy` array fully into memory with pickle loading disabled,
+before constructing the detector or starting timing. Keep frame batches within the
+available system memory.
+
 The command verifies the selected profile and manifest through the existing
 `OnnxDetector`, then measures each complete `detect` call (preprocessing, ONNX
 execution, and postprocessing) with the shared benchmark runner. The report hashes
