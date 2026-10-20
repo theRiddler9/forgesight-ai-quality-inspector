@@ -10,9 +10,10 @@ This is a timing primitive, not a model evaluation or a claim that the current h
 uses an RK3588 NPU. The `target_label` field is caller-supplied metadata. Reports
 from a development computer must not be represented as Orange Pi measurements.
 
-The trained burr model, frozen calibration manifest, ONNX/RKNN conversion, accuracy
-parity evaluation, and Orange Pi 5 benchmark remain separate work. Integrate those
-after the model artifact and calibration handoff are available.
+The profile-aware CPU ONNX detector is available through the dedicated command
+below. A trained burr model, frozen calibration manifest, ONNX export, accuracy
+parity evaluation, RKNN conversion, and Orange Pi 5 benchmark still require the
+approved model/calibration handoff and target hardware.
 
 ## Command line
 
@@ -32,6 +33,39 @@ provided, the report stores its filename, size, and SHA-256; the run is rejected
 the artifact changes during measurement. Reports also capture installed ONNX/RKNN
 runtime versions, detected host model, and SoC temperature before and after the run
 when Linux thermal telemetry is available. Missing values are recorded as `null`.
+Frame arrays must use `uint8` pixel values; the declared layout determines whether
+the adapter receives gray or BGR frames and whether the file contains one frame or
+a batch.
+
+## Profile-aware CPU ONNX detector
+
+Install the optional runtime and graph-generation dependencies with
+`python -m pip install -r software/requirements-onnx.txt`. Save one BGR8 frame as
+`H×W×3` or a batch as `N×H×W×3`; the dimensions must match the selected profile.
+After registering an ONNX profile and matching model manifest, run from the
+repository root (replace the profile and data paths with that handoff):
+
+```powershell
+python -m software.ml.benchmarks.onnx_cli `
+  --profile-catalog data/models/catalog `
+  --profile <onnx-profile-id>@<version> `
+  --model-manifest data/models/model-manifest.json `
+  --model-root data/models `
+  --frames data/benchmark/bgr-frames.npy `
+  --input-layout bgr-batch `
+  --target-label local-cpu `
+  --warmup 10 --repetitions 100 `
+  --output data/benchmark/onnx-report.json
+```
+
+The command verifies the selected profile and manifest through the existing
+`OnnxDetector`, then measures each complete `detect` call (preprocessing, ONNX
+execution, and postprocessing) with the shared benchmark runner. The report hashes
+the model artifact before and after measurement and contains the raw latency
+samples and host/runtime/temperature provenance. `--target-label` remains metadata;
+this CPU command does not claim RKNN use, Orange Pi performance, trigger-to-decision
+latency, or defect accuracy. The generated adapter-test ONNX graph is only for
+integration tests and must never be presented as a trained burr detector.
 
 The report format is described by `report.schema.json`. To produce a CSV overview
 from multiple reports without modifying the source JSON:
