@@ -65,7 +65,9 @@ the model artifact before and after measurement and contains the raw latency
 samples and host/runtime/temperature provenance. `--target-label` remains metadata;
 this CPU command does not claim RKNN use, Orange Pi performance, trigger-to-decision
 latency, or defect accuracy. The generated adapter-test ONNX graph is only for
-integration tests and must never be presented as a trained burr detector.
+integration tests and must never be presented as a trained burr detector. ONNX
+reports also retain the profile ID/version/fingerprint, model version/purpose, and
+preprocessing fingerprint; the CSV summary carries these fields for run comparisons.
 
 The report format is described by `report.schema.json`. To produce a CSV overview
 from multiple reports without modifying the source JSON:
