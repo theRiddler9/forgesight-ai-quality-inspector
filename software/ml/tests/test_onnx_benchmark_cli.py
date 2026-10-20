@@ -74,6 +74,14 @@ def test_onnx_cli_benchmarks_single_bgr_frame_and_writes_artifact_provenance(mon
     frame = np.zeros((profile.image.height, profile.image.width, 3), dtype=np.uint8)
     frames_path = tmp_path / "frame.npy"
     np.save(frames_path, frame)
+    real_load = np.load
+    load_options = {}
+
+    def load_frames(*args, **kwargs):
+        load_options.update(kwargs)
+        return real_load(*args, **kwargs)
+
+    monkeypatch.setattr(onnx_cli.np, "load", load_frames)
     detector = FakeDetector(profile, None, model_root)
     monkeypatch.setattr(onnx_cli, "OnnxDetector", lambda *args: detector)
 
@@ -88,6 +96,8 @@ def test_onnx_cli_benchmarks_single_bgr_frame_and_writes_artifact_provenance(mon
     assert len(report["latency_ms"]["samples"]) == 2
     assert len(detector.frames) == 2
     assert detector.frames[0].dtype == np.uint8
+    assert "mmap_mode" not in load_options
+    assert load_options["allow_pickle"] is False
 
 
 def test_onnx_cli_benchmarks_batch_as_individual_frames(monkeypatch, tmp_path):
