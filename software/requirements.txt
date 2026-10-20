@@ -2,6 +2,9 @@
 numpy>=1.26
 opencv-python-headless>=4.9
 pydantic>=2.5
-fastapi>=0.110
+# Starlette 1.7 adds bracketed IPv6 support to TrustedHostMiddleware; keep
+# FastAPI and Starlette on a resolver-compatible pair that includes that fix.
+fastapi>=0.151.0
+starlette>=1.7,<1.8
 uvicorn[standard]>=0.29
 psutil>=5.9

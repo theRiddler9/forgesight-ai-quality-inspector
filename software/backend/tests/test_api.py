@@ -77,6 +77,14 @@ def test_empty_read_routes_have_contract_shapes_and_cors(tmp_path):
     assert cors.headers["access-control-allow-origin"] == "http://localhost:5173"
 
 
+def test_trusted_host_accepts_bracketed_ipv6_authority(tmp_path):
+    with TestClient(create_app(tmp_path / "audit.sqlite3"), base_url="http://[::1]:8000") as client:
+        response = client.get("/health")
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "ok"
+
+
 def test_component_profiles_are_read_only_and_identified(tmp_path):
     with TestClient(create_app(tmp_path / "audit.sqlite3")) as client:
         response = client.get("/api/v1/component-profiles")
