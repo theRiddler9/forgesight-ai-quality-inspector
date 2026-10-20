@@ -64,6 +64,8 @@ def main(argv: list[str] | None = None) -> int:
         }[args.input_layout]
         if frames.ndim != expected_dimensions:
             raise ValueError(f"{args.input_layout} input must have {expected_dimensions} dimensions")
+        if frames.dtype != np.uint8:
+            raise ValueError("frame data must use uint8 pixel values")
         if args.input_layout in {"bgr", "bgr-batch"} and frames.shape[-1] != 3:
             raise ValueError("BGR input must have three channels on its final axis")
         frame_sequence = [frames] if args.input_layout in {"gray", "bgr"} else frames
