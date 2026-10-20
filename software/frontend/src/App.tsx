@@ -131,7 +131,7 @@ export default function App() {
     {error && <div role="alert" className="mb-5 rounded-xl border border-rose-400 bg-rose-400/10 p-4 text-rose-100">{error}</div>}
 
     <div className="grid gap-5 xl:grid-cols-[minmax(0,1.4fr)_minmax(340px,1fr)]">
-      <div className="space-y-5">
+      <div className="min-w-0 space-y-5">
         <InspectionStatus event={current} connected={connected} busy={busy} />
         <Section title="Recorded inspection replay">
           <p className="mb-4 text-sm text-slate-300">Run one deterministic local scenario. Geometry is checked from pixels; burr confidence comes from scenario metadata.</p>
@@ -156,7 +156,7 @@ export default function App() {
         </Section>
       </div>
 
-      <div className="space-y-5">
+      <div className="min-w-0 space-y-5">
         <Section title="System health"><div className="grid gap-2 text-sm"><div>Backend: <strong>{connected ? 'connected' : 'disconnected / unknown'}</strong></div><div>Frame source: <strong>{connected ? health?.frame_source ?? 'unknown' : 'unknown'}</strong></div><div>Detector mode: <strong>{connected ? health?.detector ?? 'unknown' : 'unknown'}</strong></div><div>I/O mode: <strong>{connected ? health?.io ?? 'unknown' : 'unknown'}</strong></div><div>Current fault: <strong>{!connected ? 'connection unavailable' : !current ? 'unknown; select an inspection' : current.faults.join(', ') || 'none reported'}</strong></div><div>Mock outputs: <strong>{connected && health ? `Green: ${health.mock_io_state.green ? 'on' : 'off'} · Red: ${health.mock_io_state.red ? 'on' : 'off'} · Amber: ${health.mock_io_state.amber ? 'on' : 'off'} · Buzzer: ${health.mock_io_state.buzzer ? 'on' : 'off'} · Ring light: ${health.mock_io_state.ring_light_pwm}%` : 'unknown while disconnected'}</strong></div></div></Section>
         <Section title="Result distribution"><div className="grid grid-cols-4 gap-2 text-center">{(['total', 'PASS', 'FAIL', 'RECHECK'] as const).map(key => <div key={key} className="rounded-lg bg-slate-800 p-3"><div className="text-2xl font-black">{metrics?.[key] ?? '—'}</div><div className="text-xs text-slate-400">{key}</div></div>)}</div><div className="mt-3 overflow-x-auto"><BarChart width={330} height={145} data={chartData}><XAxis dataKey="name" stroke="#94a3b8" fontSize={11} /><YAxis stroke="#94a3b8" allowDecimals={false} fontSize={11} /><Tooltip /><Bar dataKey="count" fill="#38bdf8" radius={[4, 4, 0, 0]} /></BarChart></div><p className="text-sm text-slate-400">Average local software timing: {metrics?.average_latency_ms?.toFixed(1) ?? '—'} ms. This is not Orange Pi latency.</p></Section>
         <Section title="Inspection detail">
