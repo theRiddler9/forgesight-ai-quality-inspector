@@ -50,6 +50,23 @@
         "max": { "type": "number", "minimum": 0 }
       }
     },
+    "onnx_context": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "backend", "profile_id", "profile_version", "profile_fingerprint",
+        "model_version", "model_purpose", "preprocessing_fingerprint"
+      ],
+      "properties": {
+        "backend": { "const": "onnx" },
+        "profile_id": { "type": "string", "minLength": 1 },
+        "profile_version": { "type": "string", "minLength": 1 },
+        "profile_fingerprint": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+        "model_version": { "type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$" },
+        "model_purpose": { "enum": ["adapter_test_fixture", "trained_unverified", "trained_validated"] },
+        "preprocessing_fingerprint": { "type": "string", "pattern": "^[a-f0-9]{64}$" }
+      }
+    },
     "environment": {
       "type": "object",
       "additionalProperties": false,
