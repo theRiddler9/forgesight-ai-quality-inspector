@@ -50,7 +50,7 @@ def main(argv: list[str] | None = None) -> int:
         registry = ProfileRegistry(args.profile_catalog, default_id=profile_id, default_version=version)
         profile = registry.get(profile_id, version)
         manifest = ModelManifest.model_validate_json(args.model_manifest.read_text(encoding="utf-8"))
-        frames = np.load(args.frames, mmap_mode="r", allow_pickle=False)
+        frames = np.load(args.frames, allow_pickle=False)
         expected_dimensions = 3 if args.input_layout == "bgr" else 4
         if frames.ndim != expected_dimensions:
             raise ValueError(f"{args.input_layout} input must have {expected_dimensions} dimensions")
