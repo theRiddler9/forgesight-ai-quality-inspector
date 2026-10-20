@@ -82,6 +82,9 @@ def test_onnx_cli_benchmarks_single_bgr_frame_and_writes_artifact_provenance(mon
     assert report["model_id"] == "test-onnx"
     assert report["target_label_is_metadata_only"] is True
     assert report["artifact"]["filename"] == "test.onnx"
+    assert report["onnx_context"]["profile_id"] == "metal-plate-v1"
+    assert report["onnx_context"]["profile_version"] == "9.1.0"
+    assert report["onnx_context"]["model_version"] == "1.2.3"
     assert len(report["latency_ms"]["samples"]) == 2
     assert len(detector.frames) == 2
     assert detector.frames[0].dtype == np.uint8
@@ -143,3 +146,31 @@ def test_onnx_cli_rejects_empty_batch_before_detector_creation(monkeypatch, tmp_
     monkeypatch.setattr(onnx_cli, "OnnxDetector", lambda *_: pytest.fail("empty batch must fail first"))
     with pytest.raises(SystemExit):
         onnx_cli.main(arguments(tmp_path, catalog, model_root, manifest_path, frames_path, "bgr-batch"))
+
+
+def test_onnx_cli_runs_generated_fixture_through_real_cpu_runtime(tmp_path):
+    pytest.importorskip("onnx")
+    pytest.importorskip("onnxruntime")
+    from software.ml.fixture_model import write_fixture_bundle
+
+    bundle_dir = tmp_path / "onnx-fixture"
+    write_fixture_bundle(bundle_dir)
+    frames_path = tmp_path / "frames.npy"
+    np.save(frames_path, np.zeros((800, 1280, 3), dtype=np.uint8))
+    output_path = tmp_path / "report.json"
+    args = [
+        "--profile-catalog", str(bundle_dir / "catalog"),
+        "--profile", "metal-plate-v1@9.0.0",
+        "--model-manifest", str(bundle_dir / "model-manifest.json"),
+        "--model-root", str(bundle_dir / "models"),
+        "--frames", str(frames_path), "--input-layout", "bgr",
+        "--target-label", "test-cpu-only", "--warmup", "1", "--repetitions", "2",
+        "--output", str(output_path),
+    ]
+
+    assert onnx_cli.main(args) == 0
+    report = json.loads(output_path.read_text(encoding="utf-8"))
+    assert report["model_id"] == "adapter-test-constant"
+    assert report["artifact"]["filename"] == "adapter-test.onnx"
+    assert report["onnx_context"]["model_purpose"] == "adapter_test_fixture"
+    assert len(report["latency_ms"]["samples"]) == 2
