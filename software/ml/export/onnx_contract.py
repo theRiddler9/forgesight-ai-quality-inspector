@@ -49,9 +49,16 @@ def inspect_onnx_graph(artifact_path: str | Path) -> dict[str, Any]:
         raise ExportValidationError(f"invalid ONNX graph: {exc}") from exc
     if len(graph.graph.input) != 1 or len(graph.graph.output) != 1:
         raise ExportValidationError("graph must contain exactly one input and one output")
+    try:
+        inputs = [_value_info(graph.graph.input[0], "input")]
+        outputs = [_value_info(graph.graph.output[0], "output")]
+    except ExportValidationError:
+        raise
+    except Exception as exc:
+        raise ExportValidationError(f"graph tensors must be typed tensors: {exc}") from exc
     return {
-        "inputs": [_value_info(graph.graph.input[0], "input")],
-        "outputs": [_value_info(graph.graph.output[0], "output")],
+        "inputs": inputs,
+        "outputs": outputs,
         "ir_version": graph.ir_version,
         "opset_imports": [opset.version for opset in graph.opset_import],
     }
