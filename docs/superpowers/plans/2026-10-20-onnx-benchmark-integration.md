@@ -35,8 +35,8 @@
 
 **Interfaces:** Test the existing `benchmark_inference`, `write_report`, `collect_static_environment`, and `read_soc_temperature_c` interfaces without changing their public signatures.
 
-- [ ] Test warmup exclusion, cyclic frame selection, deterministic sample statistics, argument validation, exception propagation, artifact identity changes, strict JSON output, and unavailable telemetry.
-- [ ] Run the focused tests and commit each test module separately.
+- [x] Test warmup exclusion, cyclic frame selection, deterministic sample statistics, argument validation, exception propagation, artifact identity changes, strict JSON output, and unavailable telemetry.
+- [x] Run the focused tests and commit each test module separately.
 
 ### Task 2: Cover the generic CLI and report summarizer
 
@@ -44,8 +44,8 @@
 
 **Interfaces:** Exercise existing `main(argv)`, parser, adapter loader, `summarize_report`, and summarizer `main(argv)` through temporary files.
 
-- [ ] Cover explicit gray/BGR image and batch layouts, invalid dimensions/channels/dtypes, adapter loading, no report on failed inference, schema validation, raw-sample recomputation, wildcard expansion, and unmatched patterns.
-- [ ] Run the focused tests and commit each test module separately.
+- [x] Cover explicit gray/BGR image and batch layouts, invalid dimensions/channels/dtypes, adapter loading, no report on failed inference, schema validation, raw-sample recomputation, wildcard expansion, and unmatched patterns.
+- [x] Run the focused tests and commit each test module separately.
 
 ### Task 3: Add a profile-aware ONNX benchmark command
 
@@ -53,7 +53,7 @@
 
 **Interfaces:** `python -m software.ml.benchmarks.onnx_cli --profile-catalog PATH --profile ID@VERSION --model-manifest PATH --model-root PATH --frames PATH --input-layout bgr|bgr-batch --target-label LABEL --warmup N --repetitions N --output PATH`.
 
-- [ ] Validate the manifest and selected profile, load `.npy` BGR8 frames with `allow_pickle=False`, check profile dimensions and layout, and benchmark `OnnxDetector.detect` through the shared runner.
-- [ ] Include the exact ONNX artifact in the existing report artifact identity field; never mark the report as target-verified based on `target-label`.
-- [ ] Test CLI validation and runner wiring with an isolated temporary profile/model bundle and a mocked detector; retain the existing optional runtime tests as the real ONNX execution check.
-- [ ] Document commands, input layout, report scope, and limits; run focused plus full Python test suites and commit code, tests, and docs as separate logical changes.
+- [x] Validate the manifest and selected profile, load `.npy` BGR8 frames with `allow_pickle=False`, check profile dimensions and layout, and benchmark `OnnxDetector.detect` through the shared runner.
+- [x] Include the exact ONNX artifact in the existing report artifact identity field; never mark the report as target-verified based on `target-label`.
+- [x] Test CLI validation and runner wiring with an isolated temporary profile/model bundle and a mocked detector; retain the existing optional runtime tests as the real ONNX execution check.
+- [x] Document commands, input layout, report scope, and limits; run focused plus full Python test suites and commit code, tests, and docs as separate logical changes.
