@@ -89,12 +89,34 @@
       "additionalProperties": false,
       "required": ["synthetic_fixture", "scenario_driven_detector", "mock_io"],
       "properties": {
-        "synthetic_fixture": { "const": true },
-        "scenario_driven_detector": { "const": true },
-        "mock_io": { "const": true }
+        "synthetic_fixture": { "type": "boolean" },
+        "scenario_driven_detector": { "type": "boolean" },
+        "mock_io": { "const": true },
+        "test_model": { "type": "boolean" }
       }
     },
     "scenario": { "type": "string", "minLength": 1 },
+    "component_profile": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "version", "fingerprint", "validation_status", "calibration_reference", "thresholds", "detector_backend"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "version": { "type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$" },
+        "fingerprint": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+        "validation_status": { "enum": ["provisional", "replay_validated", "real_approved"] },
+        "calibration_reference": { "type": ["string", "null"] },
+        "thresholds": {
+          "type": "object", "additionalProperties": false,
+          "required": ["fail_confidence", "recheck_confidence"],
+          "properties": {
+            "fail_confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+            "recheck_confidence": { "type": "number", "minimum": 0, "maximum": 1 }
+          }
+        },
+        "detector_backend": { "enum": ["scenario_simulation", "onnx", "rknn"] }
+      }
+    },
     "mock_io_state": {
       "type": "object",
       "additionalProperties": false,
@@ -209,7 +231,8 @@
         "artifact_sha256": {
           "type": ["string", "null"],
           "pattern": "^[a-fA-F0-9]{64}$"
-        }
+        },
+        "purpose": { "enum": ["adapter_test_fixture", "trained_unverified", "trained_validated"] }
       }
     },
     "operatorReview": {

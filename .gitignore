@@ -19,6 +19,12 @@ software/frontend/playwright-report/
 
 # Runtime output (never commit)
 data/
+software/dataset/raw/
+software/dataset/processed/
+software/ml/models/
+*.onnx
+*.rknn
+*.pt
 *.db
 *.sqlite3
 *.log

@@ -94,3 +94,16 @@ test('connected health does not claim no fault before a current inspection exist
   const health = screen.getByRole('heading', { name: 'System health' }).parentElement;
   await waitFor(() => expect(health).toHaveTextContent('Current fault: unknown; select an inspection'));
 });
+
+test('ONNX adapter fixture event is not presented as a validated burr detector', async () => {
+  render(<App />);
+  act(() => FakeSocket.instances[0].onopen?.());
+  const fixture = { ...event, scenario: 'local_image', result: 'RECHECK',
+    model: { name: 'adapter-test-constant', version: '0.0.1', runtime: 'onnx', artifact_sha256: 'a'.repeat(64), purpose: 'adapter_test_fixture' },
+    simulation: { synthetic_fixture: false, scenario_driven_detector: false, mock_io: true, test_model: true },
+    defects: [{ type: 'burr', confidence: 0.9, bbox_normalized: [0.3, 0.3, 0.2, 0.2] }],
+    image: { ...event.image, input_uri: 'local-image:sha256:abc', source_id: 'local-upload' } };
+  act(() => FakeSocket.instances[0].onmessage?.({ data: JSON.stringify({ event: 'inspection_event', data: fixture }) }));
+  expect(await screen.findByText(/ONNX adapter test fixture/i)).toBeInTheDocument();
+  expect(screen.getByText(/No stored preview for local image/i)).toBeInTheDocument();
+});

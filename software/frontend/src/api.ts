@@ -1,10 +1,28 @@
 import type { Decision, Health, HistoryResponse, InspectionEvent, Metrics, Review } from './types';
 
+function errorDetail(detail: unknown): string | null {
+  if (typeof detail === 'string') return detail.trim() || null;
+  if (!Array.isArray(detail) || detail.length === 0) return null;
+  const messages = detail.slice(0, 3).map((item: unknown) => {
+    if (!item || typeof item !== 'object' || !('msg' in item) || typeof item.msg !== 'string') return null;
+    const location = 'loc' in item && Array.isArray(item.loc)
+      ? item.loc.filter((part: unknown) => typeof part === 'number' || (typeof part === 'string' && /^[\w-]+$/.test(part))).join('.')
+      : '';
+    return `${location ? `${location}: ` : ''}${item.msg.slice(0, 200)}`;
+  });
+  return messages.every((message): message is string => Boolean(message)) ? messages.join('; ') : null;
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(path, init);
   if (!response.ok) {
     let message = `Request failed (${response.status})`;
-    try { const body = await response.json(); message = body.detail || message; } catch { /* response may not be JSON */ }
+    try {
+      const body: unknown = await response.json();
+      if (body && typeof body === 'object' && 'detail' in body) {
+        message = errorDetail(body.detail) ?? message;
+      }
+    } catch { /* response may not be JSON */ }
     throw new Error(message);
   }
   return response.json() as Promise<T>;

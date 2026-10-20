@@ -2,22 +2,22 @@
   "schema_version": "1.0.0",
   "event_id": "7b4d47c8-083c-4baa-b86c-7a5b56cb463a",
   "timestamp": "2026-10-02T09:30:00Z",
-  "part_id": "fixture-part-001",
+  "part_id": "virtual-component-v1",
   "result": "RECHECK",
   "defects": [
     {
-      "type": "heavy_burr",
-      "confidence": 0.61,
-      "bbox_normalized": [0.25, 0.31, 0.18, 0.12]
+      "type": "burr",
+      "confidence": 0.65,
+      "bbox_normalized": null
     }
   ],
   "poka_yoke": {
     "part_present": true,
     "position_ok": true,
-    "orientation_ok": true,
+    "orientation_ok": null,
     "hole_present": true,
-    "size_in_range": null,
-    "reasons": ["MODEL_CONFIDENCE_IN_RECHECK_BAND"]
+    "size_in_range": true,
+    "reasons": []
   },
   "latency_ms": {
     "capture": 4.2,
@@ -31,18 +31,27 @@
   },
   "soc_temperature_c": null,
   "image": {
-    "source_id": "recorded-fixture",
-    "input_uri": "fixtures/images/fixture-part-001.png",
+    "source_id": "synthetic-recorded-v1",
+    "input_uri": "fixtures/images/uncertain_burr.png",
     "evidence_uri": null,
-    "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+    "sha256": null
   },
   "model": {
-    "name": "heavy-burr-placeholder",
-    "version": "0.0.0",
+    "name": "scenario-driven-burr-simulator",
+    "version": "1.0.0",
     "runtime": "mock",
     "artifact_sha256": null
   },
-  "configuration_version": "fixture-v1",
+  "configuration_version": "metal-plate-v1@1.0.0",
+  "component_profile": {
+    "id": "metal-plate-v1",
+    "version": "1.0.0",
+    "fingerprint": "3737772767afa62f9ce4998d29240a4f4ee65e89aa76393542b4db7bf090ee6c",
+    "validation_status": "provisional",
+    "calibration_reference": null,
+    "thresholds": {"fail_confidence": 0.8, "recheck_confidence": 0.5},
+    "detector_backend": "scenario_simulation"
+  },
   "operator_review": {
     "status": "PENDING",
     "reviewed_at": null,
@@ -50,5 +59,8 @@
     "corrected_result": null,
     "note": null
   },
-  "faults": []
+  "faults": [],
+  "decision_reasons": ["simulated burr confidence in recheck band"],
+  "simulation": {"synthetic_fixture": true, "scenario_driven_detector": true, "mock_io": true},
+  "scenario": "uncertain_burr"
 }

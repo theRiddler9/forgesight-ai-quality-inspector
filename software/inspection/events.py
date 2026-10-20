@@ -10,6 +10,7 @@ import jsonschema
 
 from software.common.schemas import InspectionDecision, InspectionResult
 from software.inspection.replay import FramePacket, Scenario
+from software.profiles.models import ComponentProfile
 
 
 @lru_cache(maxsize=1)
@@ -42,6 +43,9 @@ def build_event(
     packet: FramePacket | None,
     decision_reason: str,
     fault_code: str | None = None,
+    profile: ComponentProfile | None = None,
+    inspection_mode: str = "replay",
+    model_purpose: str | None = None,
 ) -> dict[str, Any]:
     """Create a schema-valid event without claiming a real part or trained model."""
     status = result.poka_yoke_status
@@ -66,7 +70,7 @@ def build_event(
         "event_id": str(result.inspection_id),
         "timestamp": result.model_dump(mode="json")["timestamp"],
         # This identifies the virtual inspection profile, never a physical part.
-        "part_id": "virtual-component-v1",
+        "part_id": "virtual-component-v1" if inspection_mode == "replay" else "unidentified-component",
         "result": result.result.value,
         "defects": defects,
         "poka_yoke": {
@@ -89,8 +93,8 @@ def build_event(
         },
         "soc_temperature_c": None if result.soc_temp_c == -1 else result.soc_temp_c,
         "image": {
-            "source_id": packet.source_id if packet else "synthetic-recorded-v1",
-            "input_uri": packet.source_uri if packet else f"scenario:{scenario.name}",
+            "source_id": packet.source_id if packet else ("synthetic-recorded-v1" if inspection_mode == "replay" else "local-image"),
+            "input_uri": packet.source_uri if packet else (f"scenario:{scenario.name}" if inspection_mode == "replay" else "local-image:unavailable"),
             "evidence_uri": result.image_path,
             "sha256": packet.sha256 if packet else None,
         },
@@ -111,11 +115,33 @@ def build_event(
         "faults": [fault_code] if fault_code else [],
         "decision_reasons": [decision_reason],
         "simulation": {
-            "synthetic_fixture": True,
-            "scenario_driven_detector": True,
+            "synthetic_fixture": inspection_mode == "replay",
+            "scenario_driven_detector": inspection_mode == "replay",
             "mock_io": True,
         },
         "scenario": scenario.name,
     }
+    if profile is not None:
+        event["model"] = {
+            "name": profile.detector.model_id,
+            "version": profile.detector.model_version,
+            "runtime": "mock" if profile.detector.backend == "scenario_simulation" else profile.detector.backend,
+            "artifact_sha256": profile.detector.artifact_sha256,
+        }
+        event["configuration_version"] = f"{profile.profile_id}@{profile.version}"
+        event["component_profile"] = {
+            "id": profile.profile_id,
+            "version": profile.version,
+            "fingerprint": profile.fingerprint,
+            "validation_status": profile.validation_status,
+            "calibration_reference": profile.calibration.reference,
+            "thresholds": profile.thresholds.model_dump(),
+            "detector_backend": profile.detector.backend,
+        }
+        event["simulation"]["scenario_driven_detector"] = profile.detector.backend == "scenario_simulation"
+    if inspection_mode != "replay":
+        event["simulation"]["test_model"] = model_purpose == "adapter_test_fixture"
+        if model_purpose is not None:
+            event["model"]["purpose"] = model_purpose
     validate_event(event)
     return event

@@ -1,12 +1,32 @@
-import { mkdirSync } from 'node:fs';
+import { mkdirSync, readFileSync } from 'node:fs';
+import { createServer } from 'node:net';
 import { resolve } from 'node:path';
 import { expect, test, type Page, type WebSocketRoute } from '@playwright/test';
-import { LocalServers } from './servers';
+import { assertPortAvailable, LocalServers } from './servers';
 
 test.describe.configure({ mode: 'serial' });
 const servers = new LocalServers();
 test.beforeAll(async () => { await servers.start(); });
 test.afterAll(async () => { await servers.stop(); });
+
+test('server startup preflight rejects an occupied port', async () => {
+  const blocker = createServer();
+  await new Promise<void>((resolve, reject) => {
+    blocker.once('error', reject);
+    blocker.listen(0, '127.0.0.1', resolve);
+  });
+  const address = blocker.address();
+  if (!address || typeof address === 'string') throw new Error('test server did not bind a TCP port');
+  try {
+    await expect(assertPortAvailable(address.port, 'test backend')).rejects.toThrow(
+      `Cannot start test backend: port ${address.port} is already in use`,
+    );
+  } finally {
+    await new Promise<void>((resolve, reject) => {
+      blocker.close(error => error ? reject(error) : resolve());
+    });
+  }
+});
 
 async function captureEvidence(page: Page, name: string): Promise<void> {
   if (process.env.FORGESIGHT_CAPTURE_EVIDENCE !== '1') return;
@@ -196,6 +216,13 @@ test('backend restart preserves reviews and safe disconnect status', async ({ pa
   await expect(page.getByRole('button', { name: 'Run clean part' })).toBeEnabled();
   await page.getByRole('button', { name: 'Run clean part' }).click();
   await expect(page.getByRole('status').getByText('PASS', { exact: true })).toBeVisible();
+  const uncertain = await page.request.post('/api/v1/inspections/replay', { data: { scenario: 'uncertain_burr' } });
+  expect(uncertain.ok()).toBeTruthy();
+  const eventId = (await uncertain.json()).event.event_id as string;
+  const review = await page.request.post(`/api/v1/inspections/${eventId}/review`, {
+    data: { reviewer_id: 'demo-operator', corrected_result: 'FAIL', note: 'Manual burr review' },
+  });
+  expect(review.ok()).toBeTruthy();
   await servers.stopBackend();
   await expect(page.getByRole('status')).toContainText('Disconnected');
   await expect(page.getByRole('status')).not.toContainText('PASS');
@@ -203,7 +230,7 @@ test('backend restart preserves reviews and safe disconnect status', async ({ pa
   await expect(page.getByText('Connected to local backend')).toBeVisible();
   const history = page.getByRole('heading', { name: 'Inspection history' }).locator('..');
   await history.getByLabel('Result').selectOption('RECHECK');
-  await history.locator('tbody tr').filter({ hasText: 'uncertain burr' }).getByRole('button', { name: /View inspection/ }).click();
+  await history.getByRole('button', { name: `View inspection ${eventId}` }).click();
   const detail = page.getByRole('heading', { name: 'Inspection detail' }).locator('..');
   await expect(detail).toContainText('FAIL by demo-operator (Manual burr review)');
   await expect(detail).toContainText('RECHECK');
@@ -246,6 +273,27 @@ test('replay controls are reachable and usable from the keyboard', async ({ page
   await expect(page.getByRole('status').getByText('RECHECK', { exact: true })).toBeVisible();
 });
 
+if (process.env.FORGESIGHT_TEST_ONNX === '1') {
+  test('real ONNX graph event reaches the rendered HMI with test-only provenance', async ({ page }) => {
+    await page.goto('/');
+    await expect(page.getByText('Connected to local backend')).toBeVisible();
+    const image = readFileSync(resolve(import.meta.dirname, '../../../software/fixtures/images/clean.png'));
+    const response = await page.request.post('/api/v1/inspections/image?profile_id=metal-plate-v1&version=9.0.0', {
+      data: image, headers: { 'content-type': 'image/png' },
+    });
+    expect(response.status()).toBe(200);
+    const { event } = await response.json() as { event: { event_id: string; result: string; model: { purpose: string } } };
+    expect(event.result).toBe('RECHECK');
+    expect(event.model.purpose).toBe('adapter_test_fixture');
+    await expect(page.getByRole('status')).toContainText('RECHECK');
+    await expect(page.getByText(/ONNX adapter test fixture/i).first()).toBeVisible();
+    await expect(page.getByText(/No stored preview for local image/i)).toBeVisible();
+    await page.getByRole('button', { name: `View inspection ${event.event_id}` }).click();
+    await expect(page.getByRole('heading', { name: 'Inspection detail' }).locator('..')).toContainText('test-only ONNX graph');
+    await page.reload();
+    await expect(page.getByRole('button', { name: `View inspection ${event.event_id}` })).toBeVisible();
+  });
+}
 test('history controls keep one live WebSocket and fetch current selection', async ({ page }) => {
   let connections = 0;
   let closures = 0;

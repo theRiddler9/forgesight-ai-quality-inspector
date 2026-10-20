@@ -1,0 +1,26 @@
+{
+  "config_version": "1.0.0",
+  "component_profile": "metal-plate-v1@1.0.0",
+  "dataset_version": null,
+  "dataset_manifest": null,
+  "architecture": "yolo11n",
+  "input_width": null,
+  "input_height": null,
+  "classes": null,
+  "epochs": null,
+  "batch_size": null,
+  "learning_rate": null,
+  "random_seed": null,
+  "device": "auto",
+  "augmentation": {
+    "enabled": false,
+    "lighting": false,
+    "rotation_degrees": 0,
+    "horizontal_flip": false
+  },
+  "group_by": "physical_part_id",
+  "export_target": "onnx",
+  "fail_confidence": null,
+  "recheck_confidence": null,
+  "output_directory": null
+}

@@ -8,6 +8,11 @@ const scenarioLabel = (name: string) => name.replaceAll('_', ' ');
 const timestamp = (value: string) => new Date(value).toLocaleString();
 const checkText = (value: boolean | null) => value === null ? 'Not evaluated' : value ? 'Pass' : 'Fail';
 const STATUS_COLORS: Record<Decision, string> = { PASS: 'text-emerald-300', FAIL: 'text-rose-300', RECHECK: 'text-amber-300' };
+const detectorMode = (event: InspectionEvent) => event.model.purpose === 'adapter_test_fixture'
+  ? 'ONNX adapter test fixture · no validated defect judgment'
+  : event.model.purpose === 'trained_unverified' ? 'Unverified trained model · no validated defect judgment'
+  : event.model.purpose === 'trained_validated' ? 'Trained ONNX model · validate against approved evidence'
+  : 'Scenario-driven detector · simulated';
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return <section className="rounded-2xl border border-slate-700 bg-slate-900/85 p-5 shadow-xl shadow-black/10">
@@ -119,14 +124,14 @@ export default function App() {
     </header>
 
     <div className="mb-5 grid gap-2 sm:grid-cols-3">
-      <div className="rounded-xl border border-cyan-500/40 bg-cyan-500/10 px-4 py-3 text-sm font-semibold text-cyan-100">Synthetic fixtures · no factory images</div>
-      <div className="rounded-xl border border-cyan-500/40 bg-cyan-500/10 px-4 py-3 text-sm font-semibold text-cyan-100">Scenario-driven detector · no trained model</div>
+      <div className="rounded-xl border border-cyan-500/40 bg-cyan-500/10 px-4 py-3 text-sm font-semibold text-cyan-100">{current && !current.simulation.synthetic_fixture ? 'Local image · source hash recorded' : 'Synthetic fixtures · no factory images'}</div>
+      <div className="rounded-xl border border-cyan-500/40 bg-cyan-500/10 px-4 py-3 text-sm font-semibold text-cyan-100">{current ? detectorMode(current) : 'Scenario-driven detector · no trained model'}</div>
       <div className="rounded-xl border border-cyan-500/40 bg-cyan-500/10 px-4 py-3 text-sm font-semibold text-cyan-100">Mock I/O · no physical indicators</div>
     </div>
     {error && <div role="alert" className="mb-5 rounded-xl border border-rose-400 bg-rose-400/10 p-4 text-rose-100">{error}</div>}
 
     <div className="grid gap-5 xl:grid-cols-[minmax(0,1.4fr)_minmax(340px,1fr)]">
-      <div className="space-y-5">
+      <div className="min-w-0 space-y-5">
         <InspectionStatus event={current} connected={connected} busy={busy} />
         <Section title="Recorded inspection replay">
           <p className="mb-4 text-sm text-slate-300">Run one deterministic local scenario. Geometry is checked from pixels; burr confidence comes from scenario metadata.</p>
@@ -135,12 +140,12 @@ export default function App() {
         <Section title="Latest frame and checks">
           {connected && current ? <div className="grid gap-5 md:grid-cols-[minmax(0,1fr)_minmax(230px,1fr)]">
             <div className="flex min-h-56 items-center justify-center overflow-hidden rounded-xl bg-slate-950">
-              {current.scenario === 'capture_fault' ? <span className="p-5 text-center text-amber-200">No image captured · simulated camera fault</span> : <img className="max-h-72 w-full object-contain" src={api.fixture(current.scenario)} alt={`Synthetic fixture for ${scenarioLabel(current.scenario)}`} />}
+              {!current.simulation.synthetic_fixture ? <span className="p-5 text-center text-slate-300">No stored preview for local image · inspect source hash in detail</span> : current.scenario === 'capture_fault' ? <span className="p-5 text-center text-amber-200">No image captured · simulated camera fault</span> : <img className="max-h-72 w-full object-contain" src={api.fixture(current.scenario)} alt={`Synthetic fixture for ${scenarioLabel(current.scenario)}`} />}
             </div>
             <div className="space-y-2 text-sm">
               <div className="font-semibold text-slate-200">Poka-Yoke geometry</div>
               {Object.entries(current.poka_yoke).filter(([key]) => key !== 'reasons').map(([key, value]) => <div key={key} className="flex justify-between gap-3 border-b border-slate-700 py-1"><span className="capitalize text-slate-400">{key.replaceAll('_', ' ')}</span><span>{checkText(value as boolean | null)}</span></div>)}
-              <div className="pt-2 text-slate-300">Detector: {current.defects.length ? `${current.defects[0].type} (${(current.defects[0].confidence * 100).toFixed(0)}% simulated confidence)` : 'No scenario defect'}</div>
+              <div className="pt-2 text-slate-300">Detector: {current.defects.length ? `${current.defects[0].type} (${(current.defects[0].confidence * 100).toFixed(0)}% ${current.simulation.scenario_driven_detector ? 'simulated confidence' : 'ONNX output confidence'})` : 'No detector output'}</div>
             </div>
           </div> : <p className="text-slate-400">{connected ? 'Run a scenario to see its recorded frame.' : 'Current frame unavailable while disconnected.'}</p>}
         </Section>
@@ -151,7 +156,7 @@ export default function App() {
         </Section>
       </div>
 
-      <div className="space-y-5">
+      <div className="min-w-0 space-y-5">
         <Section title="System health"><div className="grid gap-2 text-sm"><div>Backend: <strong>{connected ? 'connected' : 'disconnected / unknown'}</strong></div><div>Frame source: <strong>{connected ? health?.frame_source ?? 'unknown' : 'unknown'}</strong></div><div>Detector mode: <strong>{connected ? health?.detector ?? 'unknown' : 'unknown'}</strong></div><div>I/O mode: <strong>{connected ? health?.io ?? 'unknown' : 'unknown'}</strong></div><div>Current fault: <strong>{!connected ? 'connection unavailable' : !current ? 'unknown; select an inspection' : current.faults.join(', ') || 'none reported'}</strong></div><div>Mock outputs: <strong>{connected && health ? `Green: ${health.mock_io_state.green ? 'on' : 'off'} · Red: ${health.mock_io_state.red ? 'on' : 'off'} · Amber: ${health.mock_io_state.amber ? 'on' : 'off'} · Buzzer: ${health.mock_io_state.buzzer ? 'on' : 'off'} · Ring light: ${health.mock_io_state.ring_light_pwm}%` : 'unknown while disconnected'}</strong></div></div></Section>
         <Section title="Result distribution"><div className="grid grid-cols-4 gap-2 text-center">{(['total', 'PASS', 'FAIL', 'RECHECK'] as const).map(key => <div key={key} className="rounded-lg bg-slate-800 p-3"><div className="text-2xl font-black">{metrics?.[key] ?? '—'}</div><div className="text-xs text-slate-400">{key}</div></div>)}</div><div className="mt-3 overflow-x-auto"><BarChart width={330} height={145} data={chartData}><XAxis dataKey="name" stroke="#94a3b8" fontSize={11} /><YAxis stroke="#94a3b8" allowDecimals={false} fontSize={11} /><Tooltip /><Bar dataKey="count" fill="#38bdf8" radius={[4, 4, 0, 0]} /></BarChart></div><p className="text-sm text-slate-400">Average local software timing: {metrics?.average_latency_ms?.toFixed(1) ?? '—'} ms. This is not Orange Pi latency.</p></Section>
         <Section title="Inspection detail">
@@ -162,7 +167,8 @@ export default function App() {
             <div><strong>Geometry checks:</strong><ul className="ml-5 list-disc">{Object.entries(selected.poka_yoke).filter(([key]) => key !== 'reasons').map(([key, value]) => <li key={key}>{key.replaceAll('_', ' ')}: {checkText(value as boolean | null)}</li>)}</ul>{selected.poka_yoke.reasons.length > 0 && <div>Geometry reasons: {selected.poka_yoke.reasons.join('; ')}</div>}</div>
             <div><strong>Image reference:</strong> {selected.image.input_uri} · SHA-256 {selected.image.sha256 ?? 'unavailable'}</div>
             <div><strong>Detector:</strong> {selected.model.name} ({selected.model.runtime}); confidence {selected.defects[0]?.confidence?.toFixed(2) ?? 'none'}</div>
-            <div><strong>Simulation:</strong> {[selected.simulation.synthetic_fixture && 'synthetic fixture', selected.simulation.scenario_driven_detector && 'scenario-driven detector', selected.simulation.mock_io && 'mock I/O'].filter(Boolean).join(', ')}</div>
+            <div><strong>Detection mode:</strong> {detectorMode(selected)}</div>
+            <div><strong>Simulation:</strong> {[selected.simulation.synthetic_fixture && 'synthetic fixture', selected.simulation.scenario_driven_detector && 'scenario-driven detector', selected.simulation.test_model && 'test-only ONNX graph', selected.simulation.mock_io && 'mock I/O'].filter(Boolean).join(', ')}</div>
             <div><strong>Faults:</strong> {selected.faults.join(', ') || 'none'}</div>
             <div><strong>Configuration:</strong> {selected.configuration_version}</div>
             <div><strong>Timing:</strong> {Object.entries(selected.latency_ms).map(([key, value]) => `${key} ${value.toFixed(1)} ms`).join(' · ')}</div>
@@ -172,6 +178,6 @@ export default function App() {
         </Section>
       </div>
     </div>
-    <footer className="mt-7 border-t border-slate-800 pt-4 text-xs text-slate-500">Stage 2 virtual validation only. No trained burr model, physical camera, GPIO, isolation verification, or Orange Pi benchmark is connected.</footer>
+    <footer className="mt-7 border-t border-slate-800 pt-4 text-xs text-slate-500">Stage 2 virtual validation only. Recorded replay uses synthetic fixtures and simulated burr decisions. ONNX events identify their model provenance. No physical camera, GPIO, isolation verification, or Orange Pi benchmark is connected.</footer>
   </main>;
 }
