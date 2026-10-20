@@ -55,12 +55,22 @@ def summarize_report(path: str | Path) -> dict[str, Any]:
     artifact = report.get("artifact") or {}
     if not isinstance(artifact, dict):
         raise ValueError(f"artifact must be an object or null in {source}")
+    onnx_context = report.get("onnx_context") or {}
+    if not isinstance(onnx_context, dict):
+        raise ValueError(f"onnx_context must be an object in {source}")
     return {
         "report": source.name,
         "created_at": report.get("created_at"),
         "model_id": report.get("model_id"),
         "artifact_sha256": artifact.get("sha256"),
         "target_label": report.get("target_label"),
+        "backend": onnx_context.get("backend"),
+        "profile_id": onnx_context.get("profile_id"),
+        "profile_version": onnx_context.get("profile_version"),
+        "profile_fingerprint": onnx_context.get("profile_fingerprint"),
+        "model_version": onnx_context.get("model_version"),
+        "model_purpose": onnx_context.get("model_purpose"),
+        "preprocessing_fingerprint": onnx_context.get("preprocessing_fingerprint"),
         "hardware_model": env.get("hardware_model"),
         "machine": env.get("machine"),
         "warmup_runs": report.get("warmup_runs"),
