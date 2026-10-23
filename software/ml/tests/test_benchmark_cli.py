@@ -102,3 +102,33 @@ def test_cli_does_not_write_report_after_inference_error(monkeypatch, tmp_path):
             "--input-layout", "gray", "--model-id", "model", "--target-label", "host",
             "--output", str(tmp_path / "report.json"),
         ])
+
+
+def test_cli_preloads_writable_batch_before_any_timed_call(monkeypatch, tmp_path):
+    frames_path = tmp_path / "frames.npy"
+    np.save(frames_path, np.zeros((3, 4, 5), dtype=np.uint8))
+    seen = []
+    monkeypatch.setattr(cli, "_load_adapter", lambda _spec: lambda frame: (frame.__setitem__((0, 0), 7), seen.append(frame)))
+    monkeypatch.setattr(cli, "write_report", lambda *_: None)
+    assert cli.main([
+        "--adapter", "local:factory", "--frames", str(frames_path),
+        "--input-layout", "gray-batch", "--model-id", "model", "--target-label", "host",
+        "--warmup", "1", "--repetitions", "3", "--output", str(tmp_path / "report.json"),
+    ]) == 0
+    assert len(seen) == 4
+    assert all(frame.flags.writeable and not isinstance(frame, np.memmap) for frame in seen)
+    assert seen[2] is not seen[1]
+
+
+@pytest.mark.parametrize("shape", [(0, 4), (4, 0), (2, 0, 4)])
+def test_cli_rejects_zero_sized_frame_dimensions(monkeypatch, tmp_path, shape):
+    frames_path = tmp_path / "empty.npy"
+    np.save(frames_path, np.zeros(shape, dtype=np.uint8))
+    monkeypatch.setattr(cli, "_load_adapter", lambda _spec: pytest.fail("adapter should not load"))
+    with pytest.raises(SystemExit):
+        cli.main([
+            "--adapter", "local:factory", "--frames", str(frames_path),
+            "--input-layout", "gray-batch" if len(shape) == 3 else "gray",
+            "--model-id", "model", "--target-label", "host",
+            "--output", str(tmp_path / "report.json"),
+        ])

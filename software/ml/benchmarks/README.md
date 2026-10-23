@@ -35,7 +35,9 @@ runtime versions, detected host model, and SoC temperature before and after the 
 when Linux thermal telemetry is available. Missing values are recorded as `null`.
 Frame arrays must use `uint8` pixel values; the declared layout determines whether
 the adapter receives gray or BGR frames and whether the file contains one frame or
-a batch.
+a batch. The generic CLI loads the entire `.npy` array into writable memory before
+timing; choose a batch that fits in available RAM. Loading and adapter construction
+are excluded from the timed inference calls.
 
 ## Profile-aware CPU ONNX detector
 
