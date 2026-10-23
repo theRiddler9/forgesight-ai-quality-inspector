@@ -7,11 +7,24 @@ import csv
 import glob
 import json
 import math
+import re
 import statistics
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
 _SCHEMA_PATH = Path(__file__).with_name("report.schema.json")
+_RFC3339_TIMESTAMP = re.compile(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})", re.IGNORECASE)
+
+
+def _validate_timestamp(value: str) -> None:
+    """Check report time without relying on jsonschema's optional format extras."""
+    if not _RFC3339_TIMESTAMP.fullmatch(value):
+        raise ValueError("created_at must be an RFC 3339 timestamp with timezone")
+    try:
+        datetime.fromisoformat(value.replace("z", "Z"))
+    except ValueError as exc:
+        raise ValueError("created_at must be an RFC 3339 timestamp with timezone") from exc
 
 
 def _validate_report(report: dict[str, Any]) -> None:
@@ -37,6 +50,7 @@ def summarize_report(path: str | Path) -> dict[str, Any]:
     if not isinstance(report, dict):
         raise ValueError(f"report must be a JSON object: {source}")
     _validate_report(report)
+    _validate_timestamp(report["created_at"])
     if report.get("schema_version") != "1.0.0":
         raise ValueError(f"unsupported report schema in {source}")
     latency = report.get("latency_ms")

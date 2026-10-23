@@ -69,6 +69,24 @@ def test_summary_rejects_schema_invalid_report(tmp_path):
         summarize.summarize_report(source)
 
 
+@pytest.mark.parametrize("created_at", [
+    "not-a-timestamp", "2026-10-20T12:00:00", "2026-02-30T12:00:00Z",
+    "2026-10-20T25:00:00Z", "2026-10-20T12:00:00+99:00",
+])
+def test_summary_rejects_invalid_rfc3339_timestamp_without_optional_format_package(tmp_path, created_at):
+    data = report([1.0])
+    data["created_at"] = created_at
+    with pytest.raises(ValueError, match="created_at"):
+        summarize.summarize_report(write_report(tmp_path / "invalid-time.json", data))
+
+
+@pytest.mark.parametrize("created_at", ["2026-10-20T12:00:00Z", "2026-10-20T12:00:00.123+05:30"])
+def test_summary_accepts_rfc3339_timestamp(tmp_path, created_at):
+    data = report([1.0])
+    data["created_at"] = created_at
+    assert summarize.summarize_report(write_report(tmp_path / "valid-time.json", data))["created_at"] == created_at
+
+
 @pytest.mark.parametrize(
     ("samples", "repetitions"),
     [([], 1), ([1.0], 2), ([float("nan")], 1), ([-1.0], 1)],
