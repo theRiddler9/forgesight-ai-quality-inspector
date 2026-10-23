@@ -19,12 +19,14 @@ from software.ml.benchmarks import cli
     ],
 )
 def test_cli_passes_explicit_frame_sequence_to_runner(monkeypatch, tmp_path, layout, shape, expected_count):
+    """Each declared grayscale or BGR layout yields the intended frame count."""
     frames_path = tmp_path / "frames.npy"
     np.save(frames_path, np.zeros(shape, dtype=np.uint8))
     captured = {}
     monkeypatch.setattr(cli, "_load_adapter", lambda _spec: lambda _frame: None)
 
     def benchmark(infer, frames, **kwargs):
+        """Capture the frames and metadata passed across the CLI boundary."""
         captured.update(frames=list(frames), kwargs=kwargs)
         return {"latency_ms": {"samples": [0.1]}}
 
@@ -53,6 +55,7 @@ def test_cli_passes_explicit_frame_sequence_to_runner(monkeypatch, tmp_path, lay
     ],
 )
 def test_cli_rejects_layout_mismatch_before_writing_report(monkeypatch, tmp_path, layout, array):
+    """A declared layout mismatch must fail before an audit report is written."""
     frames_path = tmp_path / "frames.npy"
     np.save(frames_path, array)
     monkeypatch.setattr(cli, "_load_adapter", lambda _spec: lambda _frame: None)
@@ -67,6 +70,7 @@ def test_cli_rejects_layout_mismatch_before_writing_report(monkeypatch, tmp_path
 
 
 def test_cli_rejects_non_numpy_numeric_dtype_before_benchmark(monkeypatch, tmp_path):
+    """Floating-point source frames cannot enter the BGR8 benchmark path."""
     frames_path = tmp_path / "frames.npy"
     np.save(frames_path, np.zeros((4, 5), dtype=np.float32))
     monkeypatch.setattr(cli, "_load_adapter", lambda _spec: lambda _frame: None)
@@ -79,6 +83,7 @@ def test_cli_rejects_non_numpy_numeric_dtype_before_benchmark(monkeypatch, tmp_p
 
 
 def test_adapter_loader_requires_factory_syntax_and_callable(monkeypatch):
+    """Only an importable factory returning a callable is a valid adapter."""
     module = types.ModuleType("test_adapter_module")
     module.create = lambda: (lambda _frame: "result")
     module.not_callable = "value"
@@ -91,6 +96,7 @@ def test_adapter_loader_requires_factory_syntax_and_callable(monkeypatch):
 
 
 def test_cli_does_not_write_report_after_inference_error(monkeypatch, tmp_path):
+    """An adapter failure cannot leave a report that looks like a completed run."""
     frames_path = tmp_path / "frames.npy"
     np.save(frames_path, np.zeros((4, 5), dtype=np.uint8))
     monkeypatch.setattr(cli, "_load_adapter", lambda _spec: lambda _frame: None)
@@ -105,6 +111,7 @@ def test_cli_does_not_write_report_after_inference_error(monkeypatch, tmp_path):
 
 
 def test_cli_preloads_writable_batch_before_any_timed_call(monkeypatch, tmp_path):
+    """Batches larger than warmup remain writable and free of lazy memmap reads."""
     frames_path = tmp_path / "frames.npy"
     np.save(frames_path, np.zeros((3, 4, 5), dtype=np.uint8))
     seen = []
@@ -122,6 +129,7 @@ def test_cli_preloads_writable_batch_before_any_timed_call(monkeypatch, tmp_path
 
 @pytest.mark.parametrize("shape", [(0, 4), (4, 0), (2, 0, 4)])
 def test_cli_rejects_zero_sized_frame_dimensions(monkeypatch, tmp_path, shape):
+    """Empty spatial dimensions or batches fail before loading an adapter."""
     frames_path = tmp_path / "empty.npy"
     np.save(frames_path, np.zeros(shape, dtype=np.uint8))
     monkeypatch.setattr(cli, "_load_adapter", lambda _spec: pytest.fail("adapter should not load"))

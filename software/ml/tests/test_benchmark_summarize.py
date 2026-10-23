@@ -9,6 +9,7 @@ from software.ml.benchmarks import summarize
 
 
 def report(samples, *, repetitions=None):
+    """Build a schema-shaped report with intentionally stale cached statistics."""
     return {
         "schema_version": "1.0.0",
         "created_at": "2026-10-20T12:00:00+00:00",
@@ -33,11 +34,13 @@ def report(samples, *, repetitions=None):
 
 
 def write_report(path, data):
+    """Persist one synthetic report for summary validation tests."""
     path.write_text(json.dumps(data), encoding="utf-8")
     return path
 
 
 def test_summary_recomputes_statistics_from_raw_samples(tmp_path):
+    """CSV statistics must come from raw samples, not cached report fields."""
     source = write_report(tmp_path / "run.json", report([1.0, 2.0, 3.0, 4.0]))
     row = summarize.summarize_report(source)
     assert row["mean_ms"] == 2.5
@@ -48,6 +51,7 @@ def test_summary_recomputes_statistics_from_raw_samples(tmp_path):
 
 
 def test_summary_recomputes_p99_from_raw_samples(tmp_path):
+    """Nearest-rank p99 is derived from validated samples."""
     source = write_report(tmp_path / "run.json", report(list(range(1, 101))))
     row = summarize.summarize_report(source)
     assert row["p95_nearest_rank_ms"] == 95.0
@@ -55,6 +59,7 @@ def test_summary_recomputes_p99_from_raw_samples(tmp_path):
 
 
 def test_summary_preserves_profile_context_for_onnx_reports(tmp_path):
+    """Model and provider identity survive the JSON-to-CSV projection."""
     data = report([1.0])
     data["onnx_context"] = {
         "backend": "onnx", "profile_id": "metal-plate-v1", "profile_version": "9.1.0",
@@ -74,6 +79,7 @@ def test_summary_preserves_profile_context_for_onnx_reports(tmp_path):
 
 
 def test_summary_rejects_schema_invalid_report(tmp_path):
+    """Unexpected report fields fail versioned schema validation."""
     data = report([1.0])
     data["extra"] = "not permitted"
     source = write_report(tmp_path / "invalid.json", data)
@@ -86,6 +92,7 @@ def test_summary_rejects_schema_invalid_report(tmp_path):
     "2026-10-20T25:00:00Z", "2026-10-20T12:00:00+99:00",
 ])
 def test_summary_rejects_invalid_rfc3339_timestamp_without_optional_format_package(tmp_path, created_at):
+    """Malformed or timezone-free timestamps fail without optional validators."""
     data = report([1.0])
     data["created_at"] = created_at
     with pytest.raises(ValueError, match="created_at"):
@@ -94,6 +101,7 @@ def test_summary_rejects_invalid_rfc3339_timestamp_without_optional_format_packa
 
 @pytest.mark.parametrize("created_at", ["2026-10-20T12:00:00Z", "2026-10-20T12:00:00.123+05:30"])
 def test_summary_accepts_rfc3339_timestamp(tmp_path, created_at):
+    """UTC and offset RFC 3339 timestamps retain their source text."""
     data = report([1.0])
     data["created_at"] = created_at
     assert summarize.summarize_report(write_report(tmp_path / "valid-time.json", data))["created_at"] == created_at
@@ -104,12 +112,14 @@ def test_summary_accepts_rfc3339_timestamp(tmp_path, created_at):
     [([], 1), ([1.0], 2), ([float("nan")], 1), ([-1.0], 1)],
 )
 def test_summary_rejects_invalid_sample_vectors(tmp_path, samples, repetitions):
+    """Empty, non-finite, negative, and count-mismatched samples are rejected."""
     source = write_report(tmp_path / "invalid.json", report(samples, repetitions=repetitions))
     with pytest.raises(ValueError):
         summarize.summarize_report(source)
 
 
 def test_summary_cli_expands_report_patterns_and_writes_csv(tmp_path):
+    """Literal wildcard arguments expand in stable filename order on Windows."""
     write_report(tmp_path / "run-2.json", report([2.0]))
     write_report(tmp_path / "run-1.json", report([1.0]))
     output = tmp_path / "summary.csv"
@@ -123,5 +133,6 @@ def test_summary_cli_expands_report_patterns_and_writes_csv(tmp_path):
 
 
 def test_summary_cli_rejects_pattern_without_matches(tmp_path):
+    """An unmatched report glob cannot create an empty comparison table."""
     with pytest.raises(SystemExit):
         summarize.main([str(tmp_path / "missing-*.json"), "--output", str(tmp_path / "summary.csv")])

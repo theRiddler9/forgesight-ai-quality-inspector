@@ -16,6 +16,7 @@ from software.profiles.registry import ProfileRegistry
 
 
 def _profile_reference(value: str) -> tuple[str, str]:
+    """Split the exact profile ID and version requested by the operator."""
     profile_id, separator, version = value.partition("@")
     if not separator or not profile_id or not version or "@" in version:
         raise ValueError("--profile must use profile-id@version syntax")

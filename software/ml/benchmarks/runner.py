@@ -88,6 +88,7 @@ def benchmark_inference(
 
 
 def _median(ordered: Sequence[float]) -> float:
+    """Return the middle sample, averaging the two central values for even runs."""
     middle = len(ordered) // 2
     if len(ordered) % 2:
         return ordered[middle]
