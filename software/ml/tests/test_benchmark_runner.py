@@ -1,6 +1,7 @@
 """Regression tests for repeated inference timing and report output."""
 
 import json
+import os
 
 import pytest
 
@@ -106,3 +107,18 @@ def test_report_writer_creates_parent_and_writes_json(tmp_path):
     destination = tmp_path / "nested" / "report.json"
     runner.write_report({"repetitions": 1}, destination)
     assert json.loads(destination.read_text(encoding="utf-8")) == {"repetitions": 1}
+
+
+def test_report_writer_preserves_existing_report_when_publication_fails(monkeypatch, tmp_path):
+    """A failed final rename leaves the previous report and no temporary file."""
+    destination = tmp_path / "report.json"
+    destination.write_text("previous evidence", encoding="utf-8")
+
+    def fail_replace(_source, _target):
+        raise OSError("simulated publication failure")
+
+    monkeypatch.setattr(os, "replace", fail_replace)
+    with pytest.raises(OSError, match="publication failure"):
+        runner.write_report({"repetitions": 1}, destination)
+    assert destination.read_text(encoding="utf-8") == "previous evidence"
+    assert list(tmp_path.iterdir()) == [destination]
