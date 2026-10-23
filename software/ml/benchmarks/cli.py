@@ -55,7 +55,7 @@ def main(argv: list[str] | None = None) -> int:
     if not args.frames.is_file() or args.frames.suffix.lower() != ".npy":
         parser.error("--frames must point to an existing .npy file")
     try:
-        frames = np.load(args.frames, mmap_mode="r", allow_pickle=False)
+        frames = np.load(args.frames, allow_pickle=False)
         expected_dimensions = {
             "gray": 2,
             "gray-batch": 3,
@@ -64,6 +64,8 @@ def main(argv: list[str] | None = None) -> int:
         }[args.input_layout]
         if frames.ndim != expected_dimensions:
             raise ValueError(f"{args.input_layout} input must have {expected_dimensions} dimensions")
+        if any(dimension == 0 for dimension in frames.shape):
+            raise ValueError("frames must have non-empty image dimensions and batch")
         if frames.dtype != np.uint8:
             raise ValueError("frame data must use uint8 pixel values")
         if args.input_layout in {"bgr", "bgr-batch"} and frames.shape[-1] != 3:

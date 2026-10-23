@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import time
 from pathlib import Path
 
 import numpy as np
@@ -15,6 +16,7 @@ from software.profiles.registry import ProfileRegistry
 
 
 def _profile_reference(value: str) -> tuple[str, str]:
+    """Split the exact profile ID and version requested by the operator."""
     profile_id, separator, version = value.partition("@")
     if not separator or not profile_id or not version or "@" in version:
         raise ValueError("--profile must use profile-id@version syntax")
@@ -63,7 +65,9 @@ def main(argv: list[str] | None = None) -> int:
         if tuple(frames.shape[-3:-1]) != (profile.image.height, profile.image.width):
             raise ValueError("frame dimensions do not match the selected component profile")
         frame_sequence = [frames] if args.input_layout == "bgr" else frames
+        initialization_started_ns = time.perf_counter_ns()
         detector = OnnxDetector(profile, manifest, args.model_root)
+        model_initialization_ms = (time.perf_counter_ns() - initialization_started_ns) / 1_000_000
         artifact_path = (args.model_root.resolve() / manifest.artifact_path).resolve()
         report = benchmark_inference(
             detector.detect,
@@ -82,6 +86,9 @@ def main(argv: list[str] | None = None) -> int:
             "model_version": manifest.model_version,
             "model_purpose": manifest.model_purpose,
             "preprocessing_fingerprint": manifest.preprocessing_fingerprint,
+            "execution_providers": detector.session.get_providers(),
+            "model_initialization_ms": model_initialization_ms,
+            "timing_scope": "detector_call_including_preprocess_postprocess",
         }
         write_report(report, args.output)
     except (OSError, ValueError, RuntimeError, LookupError, json.JSONDecodeError) as exc:

@@ -14,6 +14,7 @@ from software.profiles.registry import ProfileRegistry
 
 
 def bundle(tmp_path):
+    """Build compatible provisional profile and manifest files for CLI tests."""
     catalog = tmp_path / "catalog"
     catalog.mkdir()
     model_root = tmp_path / "models"
@@ -50,16 +51,21 @@ def bundle(tmp_path):
 
 
 class FakeDetector:
+    """Record submitted frames while exposing a declared CPU provider."""
     def __init__(self, profile, manifest, model_root):
+        """Retain constructor inputs for contract assertions."""
         self.profile, self.manifest, self.model_root = profile, manifest, model_root
         self.frames = []
+        self.session = type("Session", (), {"get_providers": lambda self: ["CPUExecutionProvider"]})()
 
     def detect(self, frame):
+        """Capture one frame without depending on model execution."""
         self.frames.append(frame)
         return object()
 
 
 def arguments(tmp_path, catalog, model_root, manifest_path, frames_path, layout="bgr"):
+    """Assemble the standard profile-aware benchmark command arguments."""
     return [
         "--profile-catalog", str(catalog), "--profile", "metal-plate-v1@9.1.0",
         "--model-manifest", str(manifest_path), "--model-root", str(model_root),
@@ -70,6 +76,7 @@ def arguments(tmp_path, catalog, model_root, manifest_path, frames_path, layout=
 
 
 def test_onnx_cli_benchmarks_single_bgr_frame_and_writes_artifact_provenance(monkeypatch, tmp_path):
+    """A valid frame produces profile, model, provider, and sample metadata."""
     catalog, model_root, manifest_path, profile = bundle(tmp_path)
     frame = np.zeros((profile.image.height, profile.image.width, 3), dtype=np.uint8)
     frames_path = tmp_path / "frame.npy"
@@ -78,6 +85,7 @@ def test_onnx_cli_benchmarks_single_bgr_frame_and_writes_artifact_provenance(mon
     load_options = {}
 
     def load_frames(*args, **kwargs):
+        """Record NumPy loading options while calling the real loader."""
         load_options.update(kwargs)
         return real_load(*args, **kwargs)
 
@@ -93,6 +101,9 @@ def test_onnx_cli_benchmarks_single_bgr_frame_and_writes_artifact_provenance(mon
     assert report["onnx_context"]["profile_id"] == "metal-plate-v1"
     assert report["onnx_context"]["profile_version"] == "9.1.0"
     assert report["onnx_context"]["model_version"] == "1.2.3"
+    assert report["onnx_context"]["execution_providers"] == ["CPUExecutionProvider"]
+    assert report["onnx_context"]["model_initialization_ms"] >= 0
+    assert report["onnx_context"]["timing_scope"] == "detector_call_including_preprocess_postprocess"
     assert len(report["latency_ms"]["samples"]) == 2
     assert len(detector.frames) == 2
     assert detector.frames[0].dtype == np.uint8
@@ -101,6 +112,7 @@ def test_onnx_cli_benchmarks_single_bgr_frame_and_writes_artifact_provenance(mon
 
 
 def test_onnx_cli_benchmarks_batch_as_individual_frames(monkeypatch, tmp_path):
+    """A BGR batch submits separate full-resolution frames to the detector."""
     catalog, model_root, manifest_path, profile = bundle(tmp_path)
     frames_path = tmp_path / "batch.npy"
     np.save(frames_path, np.zeros((2, profile.image.height, profile.image.width, 3), dtype=np.uint8))
@@ -120,6 +132,7 @@ def test_onnx_cli_benchmarks_batch_as_individual_frames(monkeypatch, tmp_path):
     ],
 )
 def test_onnx_cli_rejects_incompatible_frames_before_detector_creation(monkeypatch, tmp_path, frame):
+    """Wrong shape, pixel type, or channel count fails before model loading."""
     catalog, model_root, manifest_path, _profile = bundle(tmp_path)
     frames_path = tmp_path / "bad.npy"
     np.save(frames_path, frame)
@@ -129,6 +142,7 @@ def test_onnx_cli_rejects_incompatible_frames_before_detector_creation(monkeypat
 
 
 def test_onnx_cli_rejects_invalid_profile_reference(tmp_path):
+    """A profile selector must include exactly one ID and version."""
     catalog, model_root, manifest_path, _profile = bundle(tmp_path)
     frames_path = tmp_path / "frame.npy"
     np.save(frames_path, np.zeros((800, 1280, 3), dtype=np.uint8))
@@ -139,6 +153,7 @@ def test_onnx_cli_rejects_invalid_profile_reference(tmp_path):
 
 
 def test_onnx_cli_reports_unknown_profile_without_traceback(monkeypatch, tmp_path):
+    """An unknown component version yields a controlled CLI error."""
     catalog, model_root, manifest_path, profile = bundle(tmp_path)
     frames_path = tmp_path / "frame.npy"
     np.save(frames_path, np.zeros((profile.image.height, profile.image.width, 3), dtype=np.uint8))
@@ -150,6 +165,7 @@ def test_onnx_cli_reports_unknown_profile_without_traceback(monkeypatch, tmp_pat
 
 
 def test_onnx_cli_rejects_empty_batch_before_detector_creation(monkeypatch, tmp_path):
+    """A zero-frame batch cannot initialize a benchmark detector."""
     catalog, model_root, manifest_path, profile = bundle(tmp_path)
     frames_path = tmp_path / "empty.npy"
     np.save(frames_path, np.zeros((0, profile.image.height, profile.image.width, 3), dtype=np.uint8))
@@ -159,6 +175,7 @@ def test_onnx_cli_rejects_empty_batch_before_detector_creation(monkeypatch, tmp_
 
 
 def test_onnx_cli_runs_generated_fixture_through_real_cpu_runtime(tmp_path):
+    """The deterministic graph executes in ONNX Runtime and records test provenance."""
     pytest.importorskip("onnx")
     pytest.importorskip("onnxruntime")
     from software.ml.fixture_model import write_fixture_bundle
@@ -183,4 +200,5 @@ def test_onnx_cli_runs_generated_fixture_through_real_cpu_runtime(tmp_path):
     assert report["model_id"] == "adapter-test-constant"
     assert report["artifact"]["filename"] == "adapter-test.onnx"
     assert report["onnx_context"]["model_purpose"] == "adapter_test_fixture"
+    assert report["onnx_context"]["execution_providers"] == ["CPUExecutionProvider"]
     assert len(report["latency_ms"]["samples"]) == 2

@@ -5,6 +5,8 @@ from __future__ import annotations
 import json
 import hashlib
 import math
+import os
+import tempfile
 import time
 from collections.abc import Callable, Sequence
 from datetime import datetime, timezone
@@ -63,6 +65,7 @@ def benchmark_inference(
 
     ordered = sorted(samples_ms)
     p95_index = math.ceil(0.95 * len(ordered)) - 1
+    p99_index = math.ceil(0.99 * len(ordered)) - 1
     return {
         "schema_version": "1.0.0",
         "created_at": datetime.now(timezone.utc).isoformat(),
@@ -78,6 +81,7 @@ def benchmark_inference(
             "mean": sum(samples_ms) / len(samples_ms),
             "median": _median(ordered),
             "p95_nearest_rank": ordered[p95_index],
+            "p99_nearest_rank": ordered[p99_index],
             "min": ordered[0],
             "max": ordered[-1],
         },
@@ -86,6 +90,7 @@ def benchmark_inference(
 
 
 def _median(ordered: Sequence[float]) -> float:
+    """Return the middle sample, averaging the two central values for even runs."""
     middle = len(ordered) // 2
     if len(ordered) % 2:
         return ordered[middle]
@@ -105,10 +110,21 @@ def _artifact_identity(artifact_path: str | Path) -> dict[str, Any]:
 
 
 def write_report(report: dict[str, Any], output_path: str | Path) -> None:
-    """Write a benchmark report as formatted UTF-8 JSON, creating parent dirs."""
+    """Publish formatted JSON atomically so failed writes preserve prior evidence."""
     path = Path(output_path)
+    payload = json.dumps(report, indent=2, sort_keys=True, allow_nan=False) + "\n"
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(
-        json.dumps(report, indent=2, sort_keys=True, allow_nan=False) + "\n",
-        encoding="utf-8",
-    )
+    temporary: Path | None = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            mode="w", encoding="utf-8", dir=path.parent,
+            prefix=f".{path.name}.", suffix=".tmp", delete=False,
+        ) as stream:
+            temporary = Path(stream.name)
+            stream.write(payload)
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.replace(temporary, path)
+    finally:
+        if temporary is not None:
+            temporary.unlink(missing_ok=True)

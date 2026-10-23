@@ -2,8 +2,8 @@
 
 `runner.py` provides `benchmark_inference` for timing a callable inference adapter
 over a sequence of in-memory frames. It runs configurable warmups, records every
-measured call in milliseconds, and reports mean, median, nearest-rank p95, minimum,
-and maximum latency alongside the Python and host platform metadata. `write_report`
+measured call in milliseconds, and reports mean, median, nearest-rank p95 and p99,
+minimum, and maximum latency alongside the Python and host platform metadata. `write_report`
 stores the result as formatted JSON.
 
 This is a timing primitive, not a model evaluation or a claim that the current host
@@ -35,7 +35,9 @@ runtime versions, detected host model, and SoC temperature before and after the 
 when Linux thermal telemetry is available. Missing values are recorded as `null`.
 Frame arrays must use `uint8` pixel values; the declared layout determines whether
 the adapter receives gray or BGR frames and whether the file contains one frame or
-a batch.
+a batch. The generic CLI loads the entire `.npy` array into writable memory before
+timing; choose a batch that fits in available RAM. Loading and adapter construction
+are excluded from the timed inference calls.
 
 ## Profile-aware CPU ONNX detector
 
@@ -72,6 +74,10 @@ latency, or defect accuracy. The generated adapter-test ONNX graph is only for
 integration tests and must never be presented as a trained burr detector. ONNX
 reports also retain the profile ID/version/fingerprint, model version/purpose, and
 preprocessing fingerprint; the CSV summary carries these fields for run comparisons.
+ONNX reports additionally record the providers returned by the actual runtime session,
+model initialization time separately, and an explicit timing scope. The timed call
+includes preprocessing, ONNX execution, and postprocessing; it is not an
+inference-only measurement.
 
 The report format is described by `report.schema.json`. To produce a CSV overview
 from multiple reports without modifying the source JSON:

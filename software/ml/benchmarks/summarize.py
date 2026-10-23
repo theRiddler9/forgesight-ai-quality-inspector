@@ -7,11 +7,24 @@ import csv
 import glob
 import json
 import math
+import re
 import statistics
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
 _SCHEMA_PATH = Path(__file__).with_name("report.schema.json")
+_RFC3339_TIMESTAMP = re.compile(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})", re.IGNORECASE)
+
+
+def _validate_timestamp(value: str) -> None:
+    """Check report time without relying on jsonschema's optional format extras."""
+    if not _RFC3339_TIMESTAMP.fullmatch(value):
+        raise ValueError("created_at must be an RFC 3339 timestamp with timezone")
+    try:
+        datetime.fromisoformat(value.replace("z", "Z"))
+    except ValueError as exc:
+        raise ValueError("created_at must be an RFC 3339 timestamp with timezone") from exc
 
 
 def _validate_report(report: dict[str, Any]) -> None:
@@ -37,6 +50,7 @@ def summarize_report(path: str | Path) -> dict[str, Any]:
     if not isinstance(report, dict):
         raise ValueError(f"report must be a JSON object: {source}")
     _validate_report(report)
+    _validate_timestamp(report["created_at"])
     if report.get("schema_version") != "1.0.0":
         raise ValueError(f"unsupported report schema in {source}")
     latency = report.get("latency_ms")
@@ -71,6 +85,9 @@ def summarize_report(path: str | Path) -> dict[str, Any]:
         "model_version": onnx_context.get("model_version"),
         "model_purpose": onnx_context.get("model_purpose"),
         "preprocessing_fingerprint": onnx_context.get("preprocessing_fingerprint"),
+        "execution_providers": ";".join(onnx_context.get("execution_providers", [])),
+        "model_initialization_ms": onnx_context.get("model_initialization_ms"),
+        "timing_scope": onnx_context.get("timing_scope", "adapter_call"),
         "hardware_model": env.get("hardware_model"),
         "machine": env.get("machine"),
         "warmup_runs": report.get("warmup_runs"),
@@ -78,6 +95,7 @@ def summarize_report(path: str | Path) -> dict[str, Any]:
         "mean_ms": statistics.fmean(ordered),
         "median_ms": statistics.median(ordered),
         "p95_nearest_rank_ms": ordered[math.ceil(0.95 * len(ordered)) - 1],
+        "p99_nearest_rank_ms": ordered[math.ceil(0.99 * len(ordered)) - 1],
         "min_ms": ordered[0],
         "max_ms": ordered[-1],
         "soc_temp_c_before": env.get("soc_temp_c_before"),
