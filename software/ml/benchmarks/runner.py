@@ -63,6 +63,7 @@ def benchmark_inference(
 
     ordered = sorted(samples_ms)
     p95_index = math.ceil(0.95 * len(ordered)) - 1
+    p99_index = math.ceil(0.99 * len(ordered)) - 1
     return {
         "schema_version": "1.0.0",
         "created_at": datetime.now(timezone.utc).isoformat(),
@@ -78,6 +79,7 @@ def benchmark_inference(
             "mean": sum(samples_ms) / len(samples_ms),
             "median": _median(ordered),
             "p95_nearest_rank": ordered[p95_index],
+            "p99_nearest_rank": ordered[p99_index],
             "min": ordered[0],
             "max": ordered[-1],
         },

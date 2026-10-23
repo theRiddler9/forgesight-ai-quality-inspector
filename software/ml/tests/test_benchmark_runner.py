@@ -28,6 +28,20 @@ def test_benchmark_excludes_warmup_and_cycles_frames(monkeypatch):
     assert report["environment"]["soc_temp_c_before"] is None
 
 
+def test_benchmark_reports_nearest_rank_p99_from_measured_samples(monkeypatch):
+    ticks = iter(value for milliseconds in range(1, 101)
+                 for value in (0, milliseconds * 1_000_000))
+    monkeypatch.setattr(runner.time, "perf_counter_ns", lambda: next(ticks))
+    monkeypatch.setattr(runner, "collect_static_environment", lambda: {})
+    monkeypatch.setattr(runner, "read_soc_temperature_c", lambda: None)
+    report = runner.benchmark_inference(
+        lambda _frame: None, [1], warmup_runs=0, repetitions=100,
+        model_id="model", target_label="host",
+    )
+    assert report["latency_ms"]["p95_nearest_rank"] == 95.0
+    assert report["latency_ms"]["p99_nearest_rank"] == 99.0
+
+
 @pytest.mark.parametrize(
     ("overrides", "message"),
     [

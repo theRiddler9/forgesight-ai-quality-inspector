@@ -47,18 +47,30 @@ def test_summary_recomputes_statistics_from_raw_samples(tmp_path):
     assert row["artifact_sha256"] == "a" * 64
 
 
+def test_summary_recomputes_p99_from_raw_samples(tmp_path):
+    source = write_report(tmp_path / "run.json", report(list(range(1, 101))))
+    row = summarize.summarize_report(source)
+    assert row["p95_nearest_rank_ms"] == 95.0
+    assert row["p99_nearest_rank_ms"] == 99.0
+
+
 def test_summary_preserves_profile_context_for_onnx_reports(tmp_path):
     data = report([1.0])
     data["onnx_context"] = {
         "backend": "onnx", "profile_id": "metal-plate-v1", "profile_version": "9.1.0",
         "profile_fingerprint": "b" * 64, "model_version": "1.2.3",
         "model_purpose": "trained_unverified", "preprocessing_fingerprint": "c" * 64,
+        "execution_providers": ["CPUExecutionProvider"],
+        "model_initialization_ms": 2.5,
+        "timing_scope": "detector_call_including_preprocess_postprocess",
     }
     row = summarize.summarize_report(write_report(tmp_path / "onnx.json", data))
     assert row["backend"] == "onnx"
     assert row["profile_id"] == "metal-plate-v1"
     assert row["profile_version"] == "9.1.0"
     assert row["model_purpose"] == "trained_unverified"
+    assert row["execution_providers"] == "CPUExecutionProvider"
+    assert row["model_initialization_ms"] == 2.5
 
 
 def test_summary_rejects_schema_invalid_report(tmp_path):

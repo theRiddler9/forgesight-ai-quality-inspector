@@ -53,6 +53,7 @@ class FakeDetector:
     def __init__(self, profile, manifest, model_root):
         self.profile, self.manifest, self.model_root = profile, manifest, model_root
         self.frames = []
+        self.session = type("Session", (), {"get_providers": lambda self: ["CPUExecutionProvider"]})()
 
     def detect(self, frame):
         self.frames.append(frame)
@@ -93,6 +94,9 @@ def test_onnx_cli_benchmarks_single_bgr_frame_and_writes_artifact_provenance(mon
     assert report["onnx_context"]["profile_id"] == "metal-plate-v1"
     assert report["onnx_context"]["profile_version"] == "9.1.0"
     assert report["onnx_context"]["model_version"] == "1.2.3"
+    assert report["onnx_context"]["execution_providers"] == ["CPUExecutionProvider"]
+    assert report["onnx_context"]["model_initialization_ms"] >= 0
+    assert report["onnx_context"]["timing_scope"] == "detector_call_including_preprocess_postprocess"
     assert len(report["latency_ms"]["samples"]) == 2
     assert len(detector.frames) == 2
     assert detector.frames[0].dtype == np.uint8
@@ -183,4 +187,5 @@ def test_onnx_cli_runs_generated_fixture_through_real_cpu_runtime(tmp_path):
     assert report["model_id"] == "adapter-test-constant"
     assert report["artifact"]["filename"] == "adapter-test.onnx"
     assert report["onnx_context"]["model_purpose"] == "adapter_test_fixture"
+    assert report["onnx_context"]["execution_providers"] == ["CPUExecutionProvider"]
     assert len(report["latency_ms"]["samples"]) == 2

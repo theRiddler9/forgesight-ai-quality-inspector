@@ -46,6 +46,7 @@
         "mean": { "type": "number", "minimum": 0 },
         "median": { "type": "number", "minimum": 0 },
         "p95_nearest_rank": { "type": "number", "minimum": 0 },
+        "p99_nearest_rank": { "type": "number", "minimum": 0 },
         "min": { "type": "number", "minimum": 0 },
         "max": { "type": "number", "minimum": 0 }
       }
@@ -64,7 +65,10 @@
         "profile_fingerprint": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
         "model_version": { "type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$" },
         "model_purpose": { "enum": ["adapter_test_fixture", "trained_unverified", "trained_validated"] },
-        "preprocessing_fingerprint": { "type": "string", "pattern": "^[a-f0-9]{64}$" }
+        "preprocessing_fingerprint": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+        "execution_providers": { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 } },
+        "model_initialization_ms": { "type": "number", "minimum": 0 },
+        "timing_scope": { "const": "detector_call_including_preprocess_postprocess" }
       }
     },
     "environment": {
