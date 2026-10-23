@@ -103,7 +103,10 @@ evidence for the eventual board trial.
 After an approved model and real calibration/comparison images exist, validate
 the ONNX graph against the exact profile and manifest using
 `python -m software.ml.export` as documented in
-[ONNX integration](onnx-integration.md). Select a RKNN Toolkit2 release that
+[ONNX integration](onnx-integration.md). The maintained
+[Rockchip RKNN Toolkit2 repository](https://github.com/airockchip/rknn-toolkit2)
+lists the RK3588 series as supported; inspect its wheel, examples, and release
+notes for the chosen host and board runtime before pinning a version. Select a release that
 supports the actual Linux conversion host and RK3588S target; record the toolkit
 version and conversion flags. Confirm model input layout, color/scale contract,
 output tensor layout, quantization method, calibration image provenance, and
