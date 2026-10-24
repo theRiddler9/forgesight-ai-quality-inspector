@@ -11,7 +11,8 @@ from software.ml.model_manifest import ModelManifest
 from software.profiles.models import ComponentProfile
 from software.profiles.registry import ProfileRegistry
 
-pytest.importorskip("onnx")
+onnx = pytest.importorskip("onnx")
+from onnx.external_data_helper import convert_model_to_external_data
 
 
 def make_bundle(tmp_path, *, output_channels=5, input_height=64, input_width=64):
@@ -84,3 +85,55 @@ def test_validation_rejects_missing_artifact(tmp_path):
     artifact.unlink()
     with pytest.raises(ExportValidationError, match="missing"):
         validate_onnx_artifact(profile, manifest, root)
+
+
+def _externalize_fixture(artifact):
+    """Move an initializer to an adjacent, deliberately untracked weights file."""
+    graph = onnx.load(str(artifact))
+    convert_model_to_external_data(
+        graph, all_tensors_to_one_file=True, location="weights.bin", size_threshold=0,
+    )
+    onnx.save_model(graph, str(artifact))
+    return artifact.with_name("weights.bin")
+
+
+def test_external_tensor_data_is_rejected_before_path_dependent_check(tmp_path, monkeypatch):
+    """External tensors are unsupported even when their sidecar exists elsewhere."""
+    _profile, _manifest, _root, artifact = make_bundle(tmp_path)
+    weights = _externalize_fixture(artifact)
+    assert weights.is_file()
+    unrelated_cwd = tmp_path / "unrelated"
+    unrelated_cwd.mkdir()
+    monkeypatch.chdir(unrelated_cwd)
+    with pytest.raises(ExportValidationError, match="external tensor data"):
+        inspect_onnx_graph(artifact)
+    weights.unlink()
+    with pytest.raises(ExportValidationError, match="external tensor data"):
+        inspect_onnx_graph(artifact)
+
+
+def test_external_weights_cannot_hide_behind_verified_onnx_hash(tmp_path):
+    """The current single-file identity contract rejects untracked sidecars."""
+    profile, manifest, root, artifact = make_bundle(tmp_path)
+    weights = _externalize_fixture(artifact)
+    digest = hashlib.sha256(artifact.read_bytes()).hexdigest()
+    profile_data = profile.model_dump(mode="json")
+    profile_data["detector"]["artifact_sha256"] = digest
+    profile = ComponentProfile.model_validate(profile_data)
+    manifest = manifest.model_copy(update={
+        "artifact_sha256": digest, "profile_fingerprint": profile.fingerprint,
+    })
+    weights.write_bytes(b"changed external weights")
+    assert hashlib.sha256(artifact.read_bytes()).hexdigest() == digest
+    with pytest.raises(ExportValidationError, match="external tensor data"):
+        validate_onnx_artifact(profile, manifest, root)
+
+
+def test_full_check_rejects_inferable_output_shape_disagreement(tmp_path):
+    """A declared output dimension that contradicts Add must fail static checks."""
+    _profile, _manifest, _root, artifact = make_bundle(tmp_path)
+    graph = onnx.load(str(artifact))
+    graph.graph.output[0].type.tensor_type.shape.dim[-1].dim_value = 2
+    onnx.save_model(graph, str(artifact))
+    with pytest.raises(ExportValidationError, match="invalid ONNX graph"):
+        inspect_onnx_graph(artifact)

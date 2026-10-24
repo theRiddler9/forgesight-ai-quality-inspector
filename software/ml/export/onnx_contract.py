@@ -33,6 +33,21 @@ def _value_info(value: Any, label: str) -> dict[str, Any]:
     }
 
 
+def _contains_external_tensors(message: Any, onnx: Any) -> bool:
+    """Find external TensorProto data, including tensors in nested subgraphs."""
+    if isinstance(message, onnx.TensorProto) and (
+        message.data_location == onnx.TensorProto.EXTERNAL or message.external_data
+    ):
+        return True
+    for descriptor, value in message.ListFields():
+        if descriptor.type != descriptor.TYPE_MESSAGE:
+            continue
+        children = value if descriptor.is_repeated else (value,)
+        if any(_contains_external_tensors(child, onnx) for child in children):
+            return True
+    return False
+
+
 def inspect_onnx_graph(artifact_path: str | Path) -> dict[str, Any]:
     """Return JSON-safe input/output tensor metadata from an ONNX graph."""
     try:
@@ -44,7 +59,13 @@ def inspect_onnx_graph(artifact_path: str | Path) -> dict[str, Any]:
         raise ExportValidationError("ONNX artifact does not exist")
     try:
         graph = onnx.load(str(path), load_external_data=False)
-        onnx.checker.check_model(graph)
+        if _contains_external_tensors(graph, onnx):
+            raise ExportValidationError(
+                "ONNX external tensor data is unsupported: the manifest hashes only the .onnx file"
+            )
+        onnx.checker.check_model(graph, full_check=True)
+    except ExportValidationError:
+        raise
     except Exception as exc:
         raise ExportValidationError(f"invalid ONNX graph: {exc}") from exc
     if len(graph.graph.input) != 1 or len(graph.graph.output) != 1:

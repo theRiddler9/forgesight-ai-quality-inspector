@@ -53,6 +53,10 @@ python -m software.ml.export `
 
 The report verifies the artifact hash, profile and preprocessing fingerprints, and
 the graph's single float32 input `[1,3,H,W]` and output `[1,4+C,N]` tensor shapes.
+The manifest hashes one `.onnx` file, so the preflight rejects ONNX graphs with
+external tensor data before invoking ONNX's full checker. The checker performs
+static shape inference to catch inferable inconsistencies; it does not execute
+model inference or establish numerical correctness.
 It records `inference_executed: false` and `hardware_verified: false`; it is a
 registration gate, not accuracy, RKNN, Orange Pi, thermal, or latency evidence.
 
