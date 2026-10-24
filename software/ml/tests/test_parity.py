@@ -1,6 +1,7 @@
 """Synthetic records exercise comparison logic, never real ONNX/RKNN parity."""
 
 import json
+import os
 
 import pytest
 
@@ -142,3 +143,46 @@ def test_cli_writes_failed_comparison_and_returns_nonzero(tmp_path):
     assert main(["--onnx", str(onnx), "--rknn", str(rknn),
                  "--tolerances", str(limits), "--output", str(output)]) == 1
     assert json.loads(output.read_text(encoding="utf-8"))["passed"] is False
+
+
+@pytest.mark.parametrize("source_name", ["onnx", "rknn", "tolerances"])
+@pytest.mark.parametrize("alias_kind", ["direct", "normalized", "symlink", "hardlink"])
+def test_cli_rejects_output_alias_of_any_input_without_writing(
+    tmp_path, capsys, source_name, alias_kind,
+):
+    """Path and existing-file aliases cannot replace captured evidence."""
+    sources = {
+        "onnx": tmp_path / "onnx.json",
+        "rknn": tmp_path / "rknn.json",
+        "tolerances": tmp_path / "tolerances.json",
+    }
+    for name, data in (("onnx", capture()), ("rknn", capture("rknn")),
+                       ("tolerances", tolerances())):
+        sources[name].write_text(json.dumps(data), encoding="utf-8")
+    before = {name: path.read_bytes() for name, path in sources.items()}
+    selected = sources[source_name]
+    if alias_kind == "direct":
+        output = selected
+    elif alias_kind == "normalized":
+        intermediate = tmp_path / "intermediate"
+        intermediate.mkdir()
+        output = intermediate / ".." / "." / selected.name
+    elif alias_kind == "symlink":
+        output = tmp_path / "report-alias.json"
+        try:
+            output.symlink_to(selected)
+        except (OSError, NotImplementedError):
+            pytest.skip("symlink creation unavailable on this host")
+    else:
+        output = tmp_path / "report-hardlink.json"
+        try:
+            os.link(selected, output)
+        except (OSError, NotImplementedError):
+            pytest.skip("hardlink creation unavailable on this host")
+
+    with pytest.raises(SystemExit) as exc:
+        main(["--onnx", str(sources["onnx"]), "--rknn", str(sources["rknn"]),
+              "--tolerances", str(sources["tolerances"]), "--output", str(output)])
+    assert exc.value.code == 2
+    assert "--output must not overwrite a parity input" in capsys.readouterr().err
+    assert {name: path.read_bytes() for name, path in sources.items()} == before

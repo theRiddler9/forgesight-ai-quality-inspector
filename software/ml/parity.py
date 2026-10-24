@@ -188,7 +188,12 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--output", required=True, type=Path)
     args = parser.parse_args(argv)
     try:
-        sources = [path.read_bytes() for path in (args.onnx, args.rknn, args.tolerances)]
+        inputs = (args.onnx, args.rknn, args.tolerances)
+        output = args.output.resolve()
+        if any(output == source.resolve() or
+               (args.output.exists() and args.output.samefile(source)) for source in inputs):
+            raise ValueError("--output must not overwrite a parity input")
+        sources = [path.read_bytes() for path in inputs]
         result = compare_captures(*(json.loads(raw) for raw in sources))
         result["input_file_sha256"] = {
             name: hashlib.sha256(raw).hexdigest()
