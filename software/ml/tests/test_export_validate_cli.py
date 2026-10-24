@@ -56,3 +56,49 @@ def test_export_cli_rejects_corrupt_model_manifest(tmp_path):
             "--model-manifest", str(bundle / "model-manifest.json"), "--model-root", str(bundle / "models"),
             "--output", str(tmp_path / "report.json"),
         ])
+
+
+@pytest.mark.parametrize("target", ["artifact", "manifest", "profile", "normalized-artifact"])
+def test_export_cli_cannot_overwrite_validation_inputs(tmp_path, target):
+    """A rejected report destination leaves each selected input byte-for-byte intact."""
+    from software.ml.fixture_model import write_fixture_bundle
+
+    bundle = tmp_path / "bundle"
+    write_fixture_bundle(bundle)
+    inputs = {
+        "artifact": bundle / "models" / "adapter-test.onnx",
+        "manifest": bundle / "model-manifest.json",
+        "profile": bundle / "catalog" / "adapter-test.json",
+        "normalized-artifact": bundle / "models" / ".." / "models" / "adapter-test.onnx",
+    }
+    output = inputs[target]
+    before = output.read_bytes()
+    with pytest.raises(SystemExit, match="2"):
+        validate.main([
+            "--profile-catalog", str(bundle / "catalog"), "--profile", "metal-plate-v1@9.0.0",
+            "--model-manifest", str(bundle / "model-manifest.json"),
+            "--model-root", str(bundle / "models"), "--output", str(output),
+        ])
+    assert output.read_bytes() == before
+
+
+def test_export_cli_rejects_symlink_alias_of_manifest(tmp_path):
+    """Resolving a symlink must protect the underlying manifest bytes."""
+    from software.ml.fixture_model import write_fixture_bundle
+
+    bundle = tmp_path / "bundle"
+    write_fixture_bundle(bundle)
+    manifest = bundle / "model-manifest.json"
+    alias = tmp_path / "manifest-alias.json"
+    try:
+        alias.symlink_to(manifest)
+    except (OSError, NotImplementedError):
+        pytest.skip("symlink creation unavailable on this Windows host")
+    before = manifest.read_bytes()
+    with pytest.raises(SystemExit, match="2"):
+        validate.main([
+            "--profile-catalog", str(bundle / "catalog"), "--profile", "metal-plate-v1@9.0.0",
+            "--model-manifest", str(manifest), "--model-root", str(bundle / "models"),
+            "--output", str(alias),
+        ])
+    assert manifest.read_bytes() == before

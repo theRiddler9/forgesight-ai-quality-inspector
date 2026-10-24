@@ -38,6 +38,12 @@ def main(argv: list[str] | None = None) -> int:
         registry = ProfileRegistry(args.profile_catalog, default_id=profile_id, default_version=version)
         profile = registry.get(profile_id, version)
         manifest = ModelManifest.model_validate_json(args.model_manifest.read_text(encoding="utf-8"))
+        inputs = [args.model_manifest, args.model_root / manifest.artifact_path]
+        inputs.extend(args.profile_catalog.glob("*.json"))
+        output = args.output.resolve()
+        if any(output == source.resolve() or
+               (args.output.exists() and args.output.samefile(source)) for source in inputs):
+            raise ValueError("--output must not overwrite a validation input")
         report = validate_onnx_artifact(profile, manifest, args.model_root)
         args.output.parent.mkdir(parents=True, exist_ok=True)
         args.output.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8")
