@@ -8,6 +8,7 @@ import numpy as np
 
 from software.common.schemas import DetectionBox
 from software.inspection.detectors import DetectorOutput, DetectorUnavailable
+from software.ml.export.onnx_contract import load_embedded_onnx_graph
 from software.ml.model_manifest import ModelManifest, verify_model_artifact
 from software.ml.preprocessing import preprocess_image
 from software.profiles.models import ComponentProfile
@@ -26,8 +27,9 @@ class OnnxDetector:
             raise DetectorUnavailable("unsupported ONNX output contract")
         try:
             verify_model_artifact(profile, manifest, model_root)
-            import onnxruntime as ort
             artifact = (Path(model_root).resolve() / manifest.artifact_path).resolve()
+            load_embedded_onnx_graph(artifact)
+            import onnxruntime as ort
             self.session = ort.InferenceSession(str(artifact), providers=["CPUExecutionProvider"])
         except Exception as exc:  # ONNX Runtime raises provider-specific Exception subclasses.
             raise DetectorUnavailable(f"ONNX model unavailable: {exc}") from exc

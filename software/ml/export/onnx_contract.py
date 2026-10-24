@@ -48,8 +48,8 @@ def _contains_external_tensors(message: Any, onnx: Any) -> bool:
     return False
 
 
-def inspect_onnx_graph(artifact_path: str | Path) -> dict[str, Any]:
-    """Return JSON-safe input/output tensor metadata from an ONNX graph."""
+def load_embedded_onnx_graph(artifact_path: str | Path) -> Any:
+    """Load one ONNX file without reading or accepting untracked sidecar weights."""
     try:
         import onnx
     except ImportError as exc:
@@ -59,13 +59,21 @@ def inspect_onnx_graph(artifact_path: str | Path) -> dict[str, Any]:
         raise ExportValidationError("ONNX artifact does not exist")
     try:
         graph = onnx.load(str(path), load_external_data=False)
-        if _contains_external_tensors(graph, onnx):
-            raise ExportValidationError(
-                "ONNX external tensor data is unsupported: the manifest hashes only the .onnx file"
-            )
+    except Exception as exc:
+        raise ExportValidationError(f"invalid ONNX graph: {exc}") from exc
+    if _contains_external_tensors(graph, onnx):
+        raise ExportValidationError(
+            "ONNX external tensor data is unsupported: the manifest hashes only the .onnx file"
+        )
+    return graph
+
+
+def inspect_onnx_graph(artifact_path: str | Path) -> dict[str, Any]:
+    """Return JSON-safe metadata after ONNX full static shape checking."""
+    graph = load_embedded_onnx_graph(artifact_path)
+    import onnx
+    try:
         onnx.checker.check_model(graph, full_check=True)
-    except ExportValidationError:
-        raise
     except Exception as exc:
         raise ExportValidationError(f"invalid ONNX graph: {exc}") from exc
     if len(graph.graph.input) != 1 or len(graph.graph.output) != 1:

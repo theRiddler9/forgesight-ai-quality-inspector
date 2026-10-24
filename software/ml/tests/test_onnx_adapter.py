@@ -78,6 +78,30 @@ def test_invalid_model_cannot_initialize(tmp_path, change):
         OnnxDetector(profile, manifest, root)
 
 
+def test_external_weights_cannot_initialize_runtime_adapter(tmp_path):
+    """A sidecar outside the manifest hash cannot supply runtime model weights."""
+    import onnx
+    from onnx.external_data_helper import convert_model_to_external_data
+    from software.inspection.onnx_detector import OnnxDetector
+
+    profile, manifest, root = fixture_configuration(tmp_path)
+    artifact = root / manifest.artifact_path
+    graph = onnx.load(str(artifact))
+    convert_model_to_external_data(
+        graph, all_tensors_to_one_file=True, location="weights.bin", size_threshold=0,
+    )
+    onnx.save_model(graph, str(artifact))
+    digest = hashlib.sha256(artifact.read_bytes()).hexdigest()
+    profile_data = profile.model_dump(mode="json")
+    profile_data["detector"]["artifact_sha256"] = digest
+    profile = ComponentProfile.model_validate(profile_data)
+    manifest = manifest.model_copy(update={
+        "artifact_sha256": digest, "profile_fingerprint": profile.fingerprint,
+    })
+    with pytest.raises(DetectorUnavailable, match="external tensor data"):
+        OnnxDetector(profile, manifest, root)
+
+
 def test_actual_runtime_low_score_is_not_actionable(tmp_path):
     from software.inspection.onnx_detector import OnnxDetector
     profile, manifest, root = fixture_configuration(tmp_path, confidence=0.4)
