@@ -4,6 +4,7 @@ import csv
 import json
 
 import pytest
+from jsonschema import Draft202012Validator
 
 from software.ml.benchmarks import summarize
 
@@ -76,6 +77,23 @@ def test_summary_preserves_profile_context_for_onnx_reports(tmp_path):
     assert row["model_purpose"] == "trained_unverified"
     assert row["execution_providers"] == "CPUExecutionProvider"
     assert row["model_initialization_ms"] == 2.5
+    assert row["timing_scope"] == "detector_call_including_preprocess_postprocess"
+
+
+def test_summary_leaves_legacy_missing_timing_scope_blank(tmp_path):
+    """Legacy reports without a scope must not acquire invented metadata."""
+    data = report([1.0])
+    data["onnx_context"] = {
+        "backend": "onnx", "profile_id": "metal-plate-v1", "profile_version": "9.1.0",
+        "profile_fingerprint": "b" * 64, "model_version": "1.2.3",
+        "model_purpose": "trained_unverified", "preprocessing_fingerprint": "c" * 64,
+    }
+    source = write_report(tmp_path / "legacy-onnx.json", data)
+    assert summarize.summarize_report(source)["timing_scope"] is None
+    output = tmp_path / "summary.csv"
+    assert summarize.main([str(source), "--output", str(output)]) == 0
+    with output.open(encoding="utf-8", newline="") as stream:
+        assert list(csv.DictReader(stream))[0]["timing_scope"] == ""
 
 
 def test_summary_rejects_schema_invalid_report(tmp_path):
@@ -91,11 +109,20 @@ def test_summary_rejects_schema_invalid_report(tmp_path):
     "not-a-timestamp", "2026-10-20T12:00:00", "2026-02-30T12:00:00Z",
     "2026-10-20T25:00:00Z", "2026-10-20T12:00:00+99:00",
 ])
-def test_summary_rejects_invalid_rfc3339_timestamp_without_optional_format_package(tmp_path, created_at):
-    """Malformed or timezone-free timestamps fail without optional validators."""
+@pytest.mark.parametrize("schema_format_check", [True, False])
+def test_summary_rejects_invalid_rfc3339_timestamp_without_optional_format_package(
+    tmp_path, monkeypatch, created_at, schema_format_check,
+):
+    """Invalid timestamps fail with or without schema's optional format check."""
+    if not schema_format_check:
+        schema = json.loads(summarize._SCHEMA_PATH.read_text(encoding="utf-8"))
+        monkeypatch.setattr(
+            summarize, "_validate_report",
+            lambda value: Draft202012Validator(schema).validate(value),
+        )
     data = report([1.0])
     data["created_at"] = created_at
-    with pytest.raises(ValueError, match="created_at"):
+    with pytest.raises(ValueError):
         summarize.summarize_report(write_report(tmp_path / "invalid-time.json", data))
 
 

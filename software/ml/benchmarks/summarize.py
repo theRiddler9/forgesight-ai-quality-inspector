@@ -87,7 +87,7 @@ def summarize_report(path: str | Path) -> dict[str, Any]:
         "preprocessing_fingerprint": onnx_context.get("preprocessing_fingerprint"),
         "execution_providers": ";".join(onnx_context.get("execution_providers", [])),
         "model_initialization_ms": onnx_context.get("model_initialization_ms"),
-        "timing_scope": onnx_context.get("timing_scope", "adapter_call"),
+        "timing_scope": onnx_context.get("timing_scope"),
         "hardware_model": env.get("hardware_model"),
         "machine": env.get("machine"),
         "warmup_runs": report.get("warmup_runs"),
