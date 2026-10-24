@@ -76,6 +76,23 @@ def test_summary_preserves_profile_context_for_onnx_reports(tmp_path):
     assert row["model_purpose"] == "trained_unverified"
     assert row["execution_providers"] == "CPUExecutionProvider"
     assert row["model_initialization_ms"] == 2.5
+    assert row["timing_scope"] == "detector_call_including_preprocess_postprocess"
+
+
+def test_summary_leaves_legacy_missing_timing_scope_blank(tmp_path):
+    """Legacy reports without a scope must not acquire invented metadata."""
+    data = report([1.0])
+    data["onnx_context"] = {
+        "backend": "onnx", "profile_id": "metal-plate-v1", "profile_version": "9.1.0",
+        "profile_fingerprint": "b" * 64, "model_version": "1.2.3",
+        "model_purpose": "trained_unverified", "preprocessing_fingerprint": "c" * 64,
+    }
+    source = write_report(tmp_path / "legacy-onnx.json", data)
+    assert summarize.summarize_report(source)["timing_scope"] is None
+    output = tmp_path / "summary.csv"
+    assert summarize.main([str(source), "--output", str(output)]) == 0
+    with output.open(encoding="utf-8", newline="") as stream:
+        assert list(csv.DictReader(stream))[0]["timing_scope"] == ""
 
 
 def test_summary_rejects_schema_invalid_report(tmp_path):
