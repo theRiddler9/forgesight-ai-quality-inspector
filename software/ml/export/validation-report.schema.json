@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://forgesight.local/schemas/onnx-export-validation-v1.json",
+  "title": "ForgeSight ONNX Export Validation Report",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["validation", "runtime_available", "inference_executed", "hardware_verified", "artifact", "profile", "model", "graph", "identity"],
+  "properties": {
+    "validation": {"const": "static_contract_valid"},
+    "runtime_available": {"type": "boolean"},
+    "inference_executed": {"const": false},
+    "hardware_verified": {"const": false},
+    "artifact": {
+      "type": "object", "additionalProperties": false,
+      "required": ["filename", "size_bytes", "sha256"],
+      "properties": {
+        "filename": {"type": "string", "minLength": 1},
+        "size_bytes": {"type": "integer", "minimum": 0},
+        "sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"}
+      }
+    },
+    "profile": {
+      "type": "object", "additionalProperties": false,
+      "required": ["id", "version", "fingerprint"],
+      "properties": {
+        "id": {"type": "string", "minLength": 1},
+        "version": {"type": "string", "minLength": 1},
+        "fingerprint": {"type": "string", "pattern": "^[a-f0-9]{64}$"}
+      }
+    },
+    "model": {
+      "type": "object", "additionalProperties": false,
+      "required": ["id", "version", "purpose"],
+      "properties": {
+        "id": {"type": "string", "minLength": 1},
+        "version": {"type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"},
+        "purpose": {"enum": ["adapter_test_fixture", "trained_unverified", "trained_validated"]}
+      }
+    },
+    "graph": {"type": "object"},
+    "identity": {"type": "object"}
+  }
+}
