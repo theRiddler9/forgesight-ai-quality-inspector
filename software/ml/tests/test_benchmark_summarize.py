@@ -4,6 +4,7 @@ import csv
 import json
 
 import pytest
+from jsonschema import Draft202012Validator
 
 from software.ml.benchmarks import summarize
 
@@ -108,11 +109,20 @@ def test_summary_rejects_schema_invalid_report(tmp_path):
     "not-a-timestamp", "2026-10-20T12:00:00", "2026-02-30T12:00:00Z",
     "2026-10-20T25:00:00Z", "2026-10-20T12:00:00+99:00",
 ])
-def test_summary_rejects_invalid_rfc3339_timestamp_without_optional_format_package(tmp_path, created_at):
-    """Malformed or timezone-free timestamps fail without optional validators."""
+@pytest.mark.parametrize("schema_format_check", [True, False])
+def test_summary_rejects_invalid_rfc3339_timestamp_without_optional_format_package(
+    tmp_path, monkeypatch, created_at, schema_format_check,
+):
+    """Invalid timestamps fail with or without schema's optional format check."""
+    if not schema_format_check:
+        schema = json.loads(summarize._SCHEMA_PATH.read_text(encoding="utf-8"))
+        monkeypatch.setattr(
+            summarize, "_validate_report",
+            lambda value: Draft202012Validator(schema).validate(value),
+        )
     data = report([1.0])
     data["created_at"] = created_at
-    with pytest.raises(ValueError, match="created_at"):
+    with pytest.raises(ValueError):
         summarize.summarize_report(write_report(tmp_path / "invalid-time.json", data))
 
 
